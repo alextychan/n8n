@@ -1,17 +1,13 @@
-import {
+import type {
 	IExecuteFunctions,
-} from 'n8n-core';
-
-import {
 	IDataObject,
 	INodeExecutionData,
 	INodeType,
 	INodeTypeDescription,
 } from 'n8n-workflow';
+import { NodeConnectionType } from 'n8n-workflow';
 
-import {
-	awsApiRequestREST,
-} from './GenericFunctions';
+import { awsApiRequestREST } from './GenericFunctions';
 
 export class AwsComprehend implements INodeType {
 	description: INodeTypeDescription = {
@@ -24,10 +20,9 @@ export class AwsComprehend implements INodeType {
 		description: 'Sends data to Amazon Comprehend',
 		defaults: {
 			name: 'AWS Comprehend',
-			color: '#5aa08d',
 		},
-		inputs: ['main'],
-		outputs: ['main'],
+		inputs: [NodeConnectionType.Main],
+		outputs: [NodeConnectionType.Main],
 		credentials: [
 			{
 				name: 'aws',
@@ -39,6 +34,7 @@ export class AwsComprehend implements INodeType {
 				displayName: 'Resource',
 				name: 'resource',
 				type: 'options',
+				noDataExpression: true,
 				options: [
 					{
 						name: 'Text',
@@ -46,31 +42,34 @@ export class AwsComprehend implements INodeType {
 					},
 				],
 				default: 'text',
-				description: 'The resource to perform.',
+				description: 'The resource to perform',
 			},
 			{
 				displayName: 'Operation',
 				name: 'operation',
 				type: 'options',
+				noDataExpression: true,
 				options: [
 					{
 						name: 'Detect Dominant Language',
 						value: 'detectDominantLanguage',
 						description: 'Identify the dominant language',
+						action: 'Identify the dominant language',
 					},
 					{
 						name: 'Detect Entities',
 						value: 'detectEntities',
 						description: 'Inspects text for named entities, and returns information about them',
+						action: 'Inspect text for named entities, and returns information about them',
 					},
 					{
 						name: 'Detect Sentiment',
 						value: 'detectSentiment',
 						description: 'Analyse the sentiment of the text',
+						action: 'Analyze the sentiment of the text',
 					},
 				],
 				default: 'detectDominantLanguage',
-				description: 'The operation to perform.',
 			},
 			{
 				displayName: 'Language Code',
@@ -129,50 +128,37 @@ export class AwsComprehend implements INodeType {
 				default: 'en',
 				displayOptions: {
 					show: {
-						resource: [
-							'text',
-						],
-						operation: [
-							'detectSentiment',
-							'detectEntities',
-						],
+						resource: ['text'],
+						operation: ['detectSentiment', 'detectEntities'],
 					},
 				},
-				description: 'The language code for text.',
+				description: 'The language code for text',
 			},
 			{
 				displayName: 'Text',
 				name: 'text',
 				type: 'string',
-				typeOptions: {
-					alwaysOpenEditWindow: true,
-				},
 				default: '',
 				displayOptions: {
 					show: {
-						resource: [
-							'text',
-						],
+						resource: ['text'],
 					},
 				},
-				description: 'The text to send.',
+				description: 'The text to send',
 			},
 			{
-				displayName: 'Simplify Response',
+				displayName: 'Simplify',
 				name: 'simple',
 				type: 'boolean',
 				displayOptions: {
 					show: {
-						resource: [
-							'text',
-						],
-						operation: [
-							'detectDominantLanguage',
-						],
+						resource: ['text'],
+						operation: ['detectDominantLanguage'],
 					},
 				},
 				default: true,
-				description: 'Return a simplified version of the response instead of the raw data.',
+				description:
+					'Whether to return a simplified version of the response instead of the raw data',
 			},
 			{
 				displayName: 'Additional Fields',
@@ -181,12 +167,8 @@ export class AwsComprehend implements INodeType {
 				placeholder: 'Add Field',
 				displayOptions: {
 					show: {
-						resource: [
-							'text',
-						],
-						operation: [
-							'detectEntities',
-						],
+						resource: ['text'],
+						operation: ['detectEntities'],
 					},
 				},
 				default: {},
@@ -195,11 +177,9 @@ export class AwsComprehend implements INodeType {
 						displayName: 'Endpoint Arn',
 						name: 'endpointArn',
 						type: 'string',
-						typeOptions: {
-							alwaysOpenEditWindow: true,
-						},
 						default: '',
-						description: 'The Amazon Resource Name of an endpoint that is associated with a custom entity recognition model.',
+						description:
+							'The Amazon Resource Name of an endpoint that is associated with a custom entity recognition model',
 					},
 				],
 			},
@@ -208,10 +188,10 @@ export class AwsComprehend implements INodeType {
 
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
 		const items = this.getInputData();
-		const returnData: IDataObject[] = [];
+		const returnData: INodeExecutionData[] = [];
 		let responseData;
-		const resource = this.getNodeParameter('resource', 0) as string;
-		const operation = this.getNodeParameter('operation', 0) as string;
+		const resource = this.getNodeParameter('resource', 0);
+		const operation = this.getNodeParameter('operation', 0);
 		for (let i = 0; i < items.length; i++) {
 			try {
 				if (resource === 'text') {
@@ -224,13 +204,23 @@ export class AwsComprehend implements INodeType {
 							Text: text,
 						};
 						const action = 'Comprehend_20171127.DetectDominantLanguage';
-						responseData = await awsApiRequestREST.call(this, 'comprehend', 'POST', '', JSON.stringify(body), { 'x-amz-target': action, 'Content-Type': 'application/x-amz-json-1.1' });
+						responseData = await awsApiRequestREST.call(
+							this,
+							'comprehend',
+							'POST',
+							'',
+							JSON.stringify(body),
+							{ 'x-amz-target': action, 'Content-Type': 'application/x-amz-json-1.1' },
+						);
 
-						if (simple === true) {
-							responseData = responseData.Languages.reduce((accumulator: { [key: string]: number }, currentValue: IDataObject) => {
-								accumulator[currentValue.LanguageCode as string] = currentValue.Score as number;
-								return accumulator;
-							}, {});
+						if (simple) {
+							responseData = responseData.Languages.reduce(
+								(accumulator: { [key: string]: number }, currentValue: IDataObject) => {
+									accumulator[currentValue.LanguageCode as string] = currentValue.Score as number;
+									return accumulator;
+								},
+								{},
+							);
 						}
 					}
 
@@ -243,7 +233,14 @@ export class AwsComprehend implements INodeType {
 							Text: text,
 							LanguageCode: languageCode,
 						};
-						responseData = await awsApiRequestREST.call(this, 'comprehend', 'POST', '', JSON.stringify(body), { 'x-amz-target': action, 'Content-Type': 'application/x-amz-json-1.1' });
+						responseData = await awsApiRequestREST.call(
+							this,
+							'comprehend',
+							'POST',
+							'',
+							JSON.stringify(body),
+							{ 'x-amz-target': action, 'Content-Type': 'application/x-amz-json-1.1' },
+						);
 					}
 
 					//https://docs.aws.amazon.com/comprehend/latest/dg/API_DetectEntities.html
@@ -251,7 +248,7 @@ export class AwsComprehend implements INodeType {
 						const action = 'Comprehend_20171127.DetectEntities';
 						const text = this.getNodeParameter('text', i) as string;
 						const languageCode = this.getNodeParameter('languageCode', i) as string;
-						const additionalFields = this.getNodeParameter('additionalFields', i) as IDataObject;
+						const additionalFields = this.getNodeParameter('additionalFields', i);
 
 						const body: IDataObject = {
 							Text: text,
@@ -262,24 +259,35 @@ export class AwsComprehend implements INodeType {
 							body.EndpointArn = additionalFields.endpointArn;
 						}
 
-						responseData = await awsApiRequestREST.call(this, 'comprehend', 'POST', '', JSON.stringify(body), { 'x-amz-target': action, 'Content-Type': 'application/x-amz-json-1.1' });
+						responseData = await awsApiRequestREST.call(
+							this,
+							'comprehend',
+							'POST',
+							'',
+							JSON.stringify(body),
+							{ 'x-amz-target': action, 'Content-Type': 'application/x-amz-json-1.1' },
+						);
 						responseData = responseData.Entities;
 					}
 				}
 
-				if (Array.isArray(responseData)) {
-					returnData.push.apply(returnData, responseData as IDataObject[]);
-				} else {
-					returnData.push(responseData as IDataObject);
-				}
+				const executionData = this.helpers.constructExecutionMetaData(
+					this.helpers.returnJsonArray(responseData),
+					{ itemData: { item: i } },
+				);
+				returnData.push(...executionData);
 			} catch (error) {
 				if (this.continueOnFail()) {
-					returnData.push({ error: error.message });
+					const executionData = this.helpers.constructExecutionMetaData(
+						this.helpers.returnJsonArray({ error: error.message }),
+						{ itemData: { item: i } },
+					);
+					returnData.push(...executionData);
 					continue;
 				}
 				throw error;
 			}
 		}
-		return [this.helpers.returnJsonArray(returnData)];
+		return [returnData];
 	}
 }

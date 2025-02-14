@@ -1,13 +1,14 @@
-import {
-	ICredentialType,
-	INodeProperties,
-} from 'n8n-workflow';
+import type { ICredentialType, INodeProperties } from 'n8n-workflow';
 
+import { sshTunnelProperties } from '@utils/sshTunnel.properties';
 
 export class Postgres implements ICredentialType {
 	name = 'postgres';
+
 	displayName = 'Postgres';
+
 	documentationUrl = 'postgres';
+
 	properties: INodeProperties[] = [
 		{
 			displayName: 'Host',
@@ -37,11 +38,19 @@ export class Postgres implements ICredentialType {
 			default: '',
 		},
 		{
-			displayName: 'Ignore SSL Issues',
+			displayName: 'Maximum Number of Connections',
+			name: 'maxConnections',
+			type: 'number',
+			default: 100,
+			description:
+				'Make sure this value times the number of workers you have is lower than the maximum number of connections your postgres instance allows.',
+		},
+		{
+			displayName: 'Ignore SSL Issues (Insecure)',
 			name: 'allowUnauthorizedCerts',
 			type: 'boolean',
 			default: false,
-			description: 'Connect even if SSL certificate validation is not possible.',
+			description: 'Whether to connect even if SSL certificate validation is not possible',
 		},
 		{
 			displayName: 'SSL',
@@ -49,31 +58,21 @@ export class Postgres implements ICredentialType {
 			type: 'options',
 			displayOptions: {
 				show: {
-					allowUnauthorizedCerts: [
-						false,
-					],
+					allowUnauthorizedCerts: [false],
 				},
 			},
 			options: [
 				{
-					name: 'disable',
-					value: 'disable',
-				},
-				{
-					name: 'allow',
+					name: 'Allow',
 					value: 'allow',
 				},
 				{
-					name: 'require',
+					name: 'Disable',
+					value: 'disable',
+				},
+				{
+					name: 'Require',
 					value: 'require',
-				},
-				{
-					name: 'verify (not implemented)',
-					value: 'verify',
-				},
-				{
-					name: 'verify-full (not implemented)',
-					value: 'verify-full',
 				},
 			],
 			default: 'disable',
@@ -84,5 +83,6 @@ export class Postgres implements ICredentialType {
 			type: 'number',
 			default: 5432,
 		},
+		...sshTunnelProperties,
 	];
 }

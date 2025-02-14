@@ -1,31 +1,30 @@
-import {
-	OptionsWithUri,
-} from 'request';
-
-import {
-	IExecuteFunctions,
-	IHookFunctions,
-	ILoadOptionsFunctions,
-} from 'n8n-core';
-
-import {
+import { createHash } from 'crypto';
+import upperFirst from 'lodash/upperFirst';
+import type {
 	ICredentialDataDecryptedObject,
 	IDataObject,
+	IExecuteFunctions,
+	IHookFunctions,
+	IHttpRequestMethods,
+	ILoadOptionsFunctions,
 	INodeProperties,
+	IRequestOptions,
 	IWebhookFunctions,
-	NodeApiError,
+	JsonObject,
 } from 'n8n-workflow';
+import { NodeApiError } from 'n8n-workflow';
 
-import {
-	upperFirst,
-} from 'lodash';
+export async function webexApiRequest(
+	this: IExecuteFunctions | ILoadOptionsFunctions | IHookFunctions | IWebhookFunctions,
+	method: IHttpRequestMethods,
+	resource: string,
 
-import {
-	createHash,
-} from 'crypto';
-
-export async function webexApiRequest(this: IExecuteFunctions | ILoadOptionsFunctions | IHookFunctions | IWebhookFunctions, method: string, resource: string, body: any = {}, qs: IDataObject = {}, uri?: string, option: IDataObject = {}): Promise<any> { // tslint:disable-line:no-any
-	let options: OptionsWithUri = {
+	body: any = {},
+	qs: IDataObject = {},
+	uri?: string,
+	option: IDataObject = {},
+): Promise<any> {
+	let options: IRequestOptions = {
 		method,
 		body,
 		qs,
@@ -36,48 +35,57 @@ export async function webexApiRequest(this: IExecuteFunctions | ILoadOptionsFunc
 		if (Object.keys(option).length !== 0) {
 			options = Object.assign({}, options, option);
 		}
-		if (Object.keys(body).length === 0) {
+		if (Object.keys(body as IDataObject).length === 0) {
 			delete options.body;
 		}
 		if (Object.keys(qs).length === 0) {
 			delete options.qs;
 		}
-		//@ts-ignore
-		return await this.helpers.requestOAuth2.call(this, 'ciscoWebexOAuth2Api', options, { tokenType: 'Bearer' });
+		return await this.helpers.requestOAuth2.call(this, 'ciscoWebexOAuth2Api', options, {
+			tokenType: 'Bearer',
+		});
 	} catch (error) {
-		throw new NodeApiError(this.getNode(), error);
+		throw new NodeApiError(this.getNode(), error as JsonObject);
 	}
 }
 
-export async function webexApiRequestAllItems(this: IExecuteFunctions | ILoadOptionsFunctions | IHookFunctions, propertyName: string, method: string, endpoint: string, body: any = {}, query: IDataObject = {}, options: IDataObject = {}): Promise<any> { // tslint:disable-line:no-any
+export async function webexApiRequestAllItems(
+	this: IExecuteFunctions | ILoadOptionsFunctions | IHookFunctions,
+	propertyName: string,
+	method: IHttpRequestMethods,
+	endpoint: string,
 
+	body: any = {},
+	query: IDataObject = {},
+	options: IDataObject = {},
+): Promise<any> {
 	const returnData: IDataObject[] = [];
 
 	let responseData;
 	let uri: string | undefined;
 	query.max = 100;
 	do {
-		responseData = await webexApiRequest.call(this, method, endpoint, body, query, uri, { resolveWithFullResponse: true, ...options });
+		responseData = await webexApiRequest.call(this, method, endpoint, body, query, uri, {
+			resolveWithFullResponse: true,
+			...options,
+		});
 		if (responseData.headers.link) {
-			uri = responseData.headers['link'].split(';')[0].replace('<', '').replace('>', '');
+			uri = responseData.headers.link.split(';')[0].replace('<', '').replace('>', '');
 		}
-		returnData.push.apply(returnData, responseData.body[propertyName]);
-	} while (
-		responseData.headers['link'] !== undefined &&
-		responseData.headers['link'].includes('rel="next"')
-	);
+		returnData.push.apply(returnData, responseData.body[propertyName] as IDataObject[]);
+	} while (responseData.headers.link?.includes('rel="next"'));
 	return returnData;
 }
 
 export function getEvents() {
 	const resourceEvents: { [key: string]: string[] } = {
-		'attachmentAction': ['created', 'deleted', 'updated', '*'],
-		'membership': ['created', 'deleted', 'updated', '*'],
-		'message': ['created', 'deleted', 'updated', '*'],
-		'room': ['created', 'deleted', 'updated', '*'],
-		'meeting': ['created', 'deleted', 'updated', 'started', 'ended', '*'],
-		'recording': ['created', 'deleted', 'updated', '*'],
-		'telephonyCall': ['created', 'deleted', 'updated'],
+		attachmentAction: ['created', 'deleted', 'updated', '*'],
+		membership: ['created', 'deleted', 'updated', '*'],
+		message: ['created', 'deleted', 'updated', '*'],
+		room: ['created', 'deleted', 'updated', '*'],
+		meeting: ['created', 'deleted', 'updated', 'started', 'ended', '*'],
+		recording: ['created', 'deleted', 'updated', '*'],
+		telephonyCall: ['created', 'deleted', 'updated'],
 		'*': ['created', 'updated', 'deleted', '*'],
 	};
 
@@ -90,12 +98,13 @@ export function getEvents() {
 			type: 'options',
 			displayOptions: {
 				show: {
-					resource: [
-						(resource === '*') ? 'all' : resource,
-					],
+					resource: [resource === '*' ? 'all' : resource],
 				},
 			},
-			options: resourceEvents[resource].map((event) => ({ value: (event === '*' ? 'all' : event), name: upperFirst(event) })),
+			options: resourceEvents[resource].map((event) => ({
+				value: event === '*' ? 'all' : event,
+				name: upperFirst(event),
+			})),
 			default: '',
 			required: true,
 		});
@@ -104,35 +113,46 @@ export function getEvents() {
 }
 
 export function mapResource(event: string) {
-	return ({
-		'attachmentAction': 'attachmentActions',
-		'membership': 'memberships',
-		'message': 'messages',
-		'room': 'rooms',
-		'meeting': 'meetings',
-		'recording': 'recordings',
-		'telephonyCall': 'telephony_calls',
-		'all': 'all',
-	} as { [key: string]: string })[event];
+	return (
+		{
+			attachmentAction: 'attachmentActions',
+			membership: 'memberships',
+			message: 'messages',
+			room: 'rooms',
+			meeting: 'meetings',
+			recording: 'recordings',
+			telephonyCall: 'telephony_calls',
+			all: 'all',
+		} as { [key: string]: string }
+	)[event];
 }
 
-export function getAttachemnts(attachements: IDataObject[]) {
+function removeEmptyProperties(rest: { [key: string]: any }) {
+	return Object.keys(rest)
+		.filter((k) => rest[k] !== '')
+		.reduce((a, k) => ({ ...a, [k]: rest[k] }), {});
+}
+
+export function getAttachments(attachments: IDataObject[]) {
 	const _attachments: IDataObject[] = [];
-	for (const attachment of attachements) {
+	for (const attachment of attachments) {
 		const body: IDataObject[] = [];
 		const actions: IDataObject[] = [];
-		for (const element of (attachment?.elementsUi as IDataObject).elementValues as IDataObject[] || []) {
-			// tslint:disable-next-line: no-any
-			const { type, ...rest } = element as { type: string, [key: string]: any };
+		for (const element of ((attachment?.elementsUi as IDataObject)
+			.elementValues as IDataObject[]) || []) {
+			const { type, ...rest } = element as { type: string; [key: string]: any };
 			if (type.startsWith('input')) {
-				body.push({ type: `Input.${upperFirst(type.replace('input', ''))}`, ...removeEmptyProperties(rest) });
+				body.push({
+					type: `Input.${upperFirst(type.replace('input', ''))}`,
+					...removeEmptyProperties(rest),
+				});
 			} else {
 				body.push({ type: upperFirst(type), ...removeEmptyProperties(rest) });
 			}
 		}
-		for (const action of (attachment?.actionsUi as IDataObject).actionValues as IDataObject[] || []) {
-			// tslint:disable-next-line: no-any
-			const { type, ...rest } = action as { type: string, [key: string]: any };
+		for (const action of ((attachment?.actionsUi as IDataObject).actionValues as IDataObject[]) ||
+			[]) {
+			const { type, ...rest } = action as { type: string; [key: string]: any };
 			actions.push({ type: `Action.${upperFirst(type)}`, ...removeEmptyProperties(rest) });
 		}
 		_attachments.push({
@@ -149,7 +169,7 @@ export function getAttachemnts(attachements: IDataObject[]) {
 	return _attachments;
 }
 
-export function getActionInheritedProperties() {
+export function getActionInheritedProperties(): INodeProperties[] {
 	return [
 		{
 			displayName: 'Title',
@@ -157,14 +177,15 @@ export function getActionInheritedProperties() {
 			type: 'string',
 			default: '',
 			required: true,
-			description: 'Label for button or link that represents this action.',
+			description: 'Label for button or link that represents this action',
 		},
 		{
 			displayName: 'Icon URL',
 			name: 'iconUrl',
 			type: 'string',
 			default: '',
-			description: 'Optional icon to be shown on the action in conjunction with the title. Supports data URI in version 1.2+',
+			description:
+				'Optional icon to be shown on the action in conjunction with the title. Supports data URI in version 1.2+.',
 		},
 		{
 			displayName: 'Style',
@@ -185,12 +206,13 @@ export function getActionInheritedProperties() {
 				},
 			],
 			default: 'default',
-			description: 'Controls the style of an Action, which influences how the action is displayed, spoken, etc.',
+			description:
+				'Controls the style of an Action, which influences how the action is displayed, spoken, etc',
 		},
 	];
 }
 
-export function getTextBlockProperties() {
+export function getTextBlockProperties(): INodeProperties[] {
 	return [
 		{
 			displayName: 'Text',
@@ -199,13 +221,12 @@ export function getTextBlockProperties() {
 			default: '',
 			displayOptions: {
 				show: {
-					type: [
-						'textBlock',
-					],
+					type: ['textBlock'],
 				},
 			},
 			required: true,
-			description: 'Text to display. A subset of markdown is supported (https://aka.ms/ACTextFeatures)',
+			description:
+				'Text to display. A subset of markdown is supported (https://aka.ms/ACTextFeatures).',
 		},
 		{
 			displayName: 'Color',
@@ -213,39 +234,37 @@ export function getTextBlockProperties() {
 			type: 'options',
 			displayOptions: {
 				show: {
-					type: [
-						'textBlock',
-					],
+					type: ['textBlock'],
 				},
 			},
 			options: [
 				{
-					name: 'Default',
-					value: 'default',
+					name: 'Accent',
+					value: 'accent',
+				},
+				{
+					name: 'Attention',
+					value: 'attention',
 				},
 				{
 					name: 'Dark',
 					value: 'dark',
 				},
 				{
-					name: 'Light',
-					value: 'light',
-				},
-				{
-					name: 'Accent',
-					value: 'accent',
+					name: 'Default',
+					value: 'default',
 				},
 				{
 					name: 'Good',
 					value: 'good',
 				},
 				{
-					name: 'Warning',
-					value: 'warning',
+					name: 'Light',
+					value: 'light',
 				},
 				{
-					name: 'Attention',
-					value: 'attention',
+					name: 'Warning',
+					value: 'warning',
 				},
 			],
 			default: 'default',
@@ -257,9 +276,7 @@ export function getTextBlockProperties() {
 			type: 'options',
 			displayOptions: {
 				show: {
-					type: [
-						'textBlock',
-					],
+					type: ['textBlock'],
 				},
 			},
 			options: [
@@ -281,9 +298,7 @@ export function getTextBlockProperties() {
 			type: 'options',
 			displayOptions: {
 				show: {
-					type: [
-						'textBlock',
-					],
+					type: ['textBlock'],
 				},
 			},
 			options: [
@@ -309,13 +324,11 @@ export function getTextBlockProperties() {
 			type: 'boolean',
 			displayOptions: {
 				show: {
-					type: [
-						'textBlock',
-					],
+					type: ['textBlock'],
 				},
 			},
 			default: false,
-			description: 'Displays text slightly toned down to appear less prominent',
+			description: 'Whether to display text slightly toned down to appear less prominent',
 		},
 		{
 			displayName: 'Max Lines',
@@ -323,9 +336,7 @@ export function getTextBlockProperties() {
 			type: 'number',
 			displayOptions: {
 				show: {
-					type: [
-						'textBlock',
-					],
+					type: ['textBlock'],
 				},
 			},
 			default: 1,
@@ -337,9 +348,7 @@ export function getTextBlockProperties() {
 			type: 'options',
 			displayOptions: {
 				show: {
-					type: [
-						'textBlock',
-					],
+					type: ['textBlock'],
 				},
 			},
 			options: [
@@ -348,20 +357,20 @@ export function getTextBlockProperties() {
 					value: 'default',
 				},
 				{
-					name: 'Small',
-					value: 'small',
-				},
-				{
-					name: 'Medium',
-					value: 'medium',
+					name: 'Extra Large',
+					value: 'extraLarge',
 				},
 				{
 					name: 'Large',
 					value: 'large',
 				},
 				{
-					name: 'Extra Large',
-					value: 'extraLarge',
+					name: 'Medium',
+					value: 'medium',
+				},
+				{
+					name: 'Small',
+					value: 'small',
 				},
 			],
 			default: 'default',
@@ -373,9 +382,7 @@ export function getTextBlockProperties() {
 			type: 'options',
 			displayOptions: {
 				show: {
-					type: [
-						'textBlock',
-					],
+					type: ['textBlock'],
 				},
 			},
 			options: [
@@ -401,13 +408,11 @@ export function getTextBlockProperties() {
 			type: 'boolean',
 			displayOptions: {
 				show: {
-					type: [
-						'textBlock',
-					],
+					type: ['textBlock'],
 				},
 			},
 			default: true,
-			description: 'If true, allow text to wrap. Otherwise, text is clipped',
+			description: 'Whether to allow text to wrap. Otherwise, text is clipped.',
 		},
 		{
 			displayName: 'Height',
@@ -415,9 +420,7 @@ export function getTextBlockProperties() {
 			type: 'options',
 			displayOptions: {
 				show: {
-					type: [
-						'textBlock',
-					],
+					type: ['textBlock'],
 				},
 			},
 			options: [
@@ -440,12 +443,10 @@ export function getTextBlockProperties() {
 			default: false,
 			displayOptions: {
 				show: {
-					type: [
-						'textBlock',
-					],
+					type: ['textBlock'],
 				},
 			},
-			description: 'When true, draw a separating line at the top of the element.',
+			description: 'Whether to draw a separating line at the top of the element',
 		},
 		{
 			displayName: 'Spacing',
@@ -453,9 +454,7 @@ export function getTextBlockProperties() {
 			type: 'options',
 			displayOptions: {
 				show: {
-					type: [
-						'textBlock',
-					],
+					type: ['textBlock'],
 				},
 			},
 			options: [
@@ -464,28 +463,28 @@ export function getTextBlockProperties() {
 					value: 'default',
 				},
 				{
-					name: 'None',
-					value: 'none',
-				},
-				{
-					name: 'Small',
-					value: 'small',
-				},
-				{
-					name: 'Medium',
-					value: 'medium',
+					name: 'Extra Large',
+					value: 'extraLarge',
 				},
 				{
 					name: 'Large',
 					value: 'large',
 				},
 				{
-					name: 'Extra Large',
-					value: 'extraLarge',
+					name: 'Medium',
+					value: 'medium',
+				},
+				{
+					name: 'None',
+					value: 'none',
 				},
 				{
 					name: 'Padding',
 					value: 'padding',
+				},
+				{
+					name: 'Small',
+					value: 'small',
 				},
 			],
 			default: 'default',
@@ -497,9 +496,7 @@ export function getTextBlockProperties() {
 			type: 'string',
 			displayOptions: {
 				show: {
-					type: [
-						'textBlock',
-					],
+					type: ['textBlock'],
 				},
 			},
 			default: '',
@@ -511,18 +508,16 @@ export function getTextBlockProperties() {
 			type: 'boolean',
 			displayOptions: {
 				show: {
-					type: [
-						'textBlock',
-					],
+					type: ['textBlock'],
 				},
 			},
 			default: true,
-			description: 'If false, this item will be removed from the visual trees',
+			description: 'Whether this item will be removed from the visual trees',
 		},
 	];
 }
 
-export function getInputTextProperties() {
+export function getInputTextProperties(): INodeProperties[] {
 	return [
 		{
 			displayName: 'ID',
@@ -531,13 +526,12 @@ export function getInputTextProperties() {
 			required: true,
 			displayOptions: {
 				show: {
-					type: [
-						'inputText',
-					],
+					type: ['inputText'],
 				},
 			},
 			default: '',
-			description: 'Unique identifier for the value. Used to identify collected input when the Submit action is performed',
+			description:
+				'Unique identifier for the value. Used to identify collected input when the Submit action is performed.',
 		},
 		{
 			displayName: 'Is Multiline',
@@ -545,13 +539,11 @@ export function getInputTextProperties() {
 			type: 'boolean',
 			displayOptions: {
 				show: {
-					type: [
-						'inputText',
-					],
+					type: ['inputText'],
 				},
 			},
 			default: false,
-			description: 'If true, allow multiple lines of input',
+			description: 'Whether to allow multiple lines of input',
 		},
 		{
 			displayName: 'Max Length',
@@ -559,9 +551,7 @@ export function getInputTextProperties() {
 			type: 'number',
 			displayOptions: {
 				show: {
-					type: [
-						'inputText',
-					],
+					type: ['inputText'],
 				},
 			},
 			default: 1,
@@ -573,13 +563,11 @@ export function getInputTextProperties() {
 			type: 'string',
 			displayOptions: {
 				show: {
-					type: [
-						'inputText',
-					],
+					type: ['inputText'],
 				},
 			},
 			default: '',
-			description: 'Description of the input desired. Displayed when no text has been input',
+			description: 'Description of the input desired. Displayed when no text has been input.',
 		},
 		{
 			displayName: 'Regex',
@@ -587,9 +575,7 @@ export function getInputTextProperties() {
 			type: 'string',
 			displayOptions: {
 				show: {
-					type: [
-						'inputText',
-					],
+					type: ['inputText'],
 				},
 			},
 			default: '',
@@ -601,9 +587,7 @@ export function getInputTextProperties() {
 			type: 'options',
 			displayOptions: {
 				show: {
-					type: [
-						'inputText',
-					],
+					type: ['inputText'],
 				},
 			},
 			options: [
@@ -633,22 +617,13 @@ export function getInputTextProperties() {
 			type: 'string',
 			displayOptions: {
 				show: {
-					type: [
-						'inputText',
-					],
+					type: ['inputText'],
 				},
 			},
 			default: '',
 			description: 'The initial value for this field',
 		},
 	];
-}
-
-// tslint:disable-next-line: no-any
-function removeEmptyProperties(rest: { [key: string]: any }) {
-	return Object.keys(rest)
-		.filter((k) => rest[k] !== '')
-		.reduce((a, k) => ({ ...a, [k]: rest[k] }), {});
 }
 
 export function getAutomaticSecret(credentials: ICredentialDataDecryptedObject) {

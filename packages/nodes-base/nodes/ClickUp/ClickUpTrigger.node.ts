@@ -1,9 +1,7 @@
-import {
+import { createHmac } from 'crypto';
+import type {
 	IHookFunctions,
 	IWebhookFunctions,
-} from 'n8n-core';
-
-import {
 	IDataObject,
 	ILoadOptionsFunctions,
 	INodePropertyOptions,
@@ -11,14 +9,9 @@ import {
 	INodeTypeDescription,
 	IWebhookResponseData,
 } from 'n8n-workflow';
+import { NodeConnectionType } from 'n8n-workflow';
 
-import {
-	clickupApiRequest,
-} from './GenericFunctions';
-
-import {
-	createHmac,
-} from 'crypto';
+import { clickupApiRequest } from './GenericFunctions';
 
 export class ClickUpTrigger implements INodeType {
 	description: INodeTypeDescription = {
@@ -30,19 +23,16 @@ export class ClickUpTrigger implements INodeType {
 		description: 'Handle ClickUp events via webhooks (Beta)',
 		defaults: {
 			name: 'ClickUp Trigger',
-			color: '#7B68EE',
 		},
 		inputs: [],
-		outputs: ['main'],
+		outputs: [NodeConnectionType.Main],
 		credentials: [
 			{
 				name: 'clickUpApi',
 				required: true,
 				displayOptions: {
 					show: {
-						authentication: [
-							'accessToken',
-						],
+						authentication: ['accessToken'],
 					},
 				},
 			},
@@ -51,9 +41,7 @@ export class ClickUpTrigger implements INodeType {
 				required: true,
 				displayOptions: {
 					show: {
-						authentication: [
-							'oAuth2',
-						],
+						authentication: ['oAuth2'],
 					},
 				},
 			},
@@ -84,9 +72,11 @@ export class ClickUpTrigger implements INodeType {
 				default: 'accessToken',
 			},
 			{
-				displayName: 'Team',
+				displayName: 'Team Name or ID',
 				name: 'team',
 				type: 'options',
+				description:
+					'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
 				typeOptions: {
 					loadOptionsMethod: 'getTeams',
 				},
@@ -121,12 +111,12 @@ export class ClickUpTrigger implements INodeType {
 						value: 'goalCreated',
 					},
 					{
-						name: 'goal.updated',
-						value: 'goalUpdated',
-					},
-					{
 						name: 'goal.deleted',
 						value: 'goalDeleted',
+					},
+					{
+						name: 'goal.updated',
+						value: 'goalUpdated',
 					},
 					{
 						name: 'keyResult.created',
@@ -252,7 +242,7 @@ export class ClickUpTrigger implements INodeType {
 
 	methods = {
 		loadOptions: {
-			// Get all the available teams to display them to user so that he can
+			// Get all the available teams to display them to user so that they can
 			// select them easily
 			async getTeams(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
 				const returnData: INodePropertyOptions[] = [];
@@ -269,7 +259,7 @@ export class ClickUpTrigger implements INodeType {
 			},
 		},
 	};
-	// @ts-ignore
+
 	webhookMethods = {
 		default: {
 			async checkExists(this: IHookFunctions): Promise<boolean> {
@@ -339,15 +329,15 @@ export class ClickUpTrigger implements INodeType {
 		const webhookData = this.getWorkflowStaticData('node');
 		const headerData = this.getHeaderData() as IDataObject;
 		const req = this.getRequestObject();
-		const computedSignature = createHmac('sha256', webhookData.secret as string).update(JSON.stringify(req.body)).digest('hex');
+		const computedSignature = createHmac('sha256', webhookData.secret as string)
+			.update(JSON.stringify(req.body))
+			.digest('hex');
 		if (headerData['x-signature'] !== computedSignature) {
 			// Signature is not valid so ignore call
 			return {};
 		}
 		return {
-			workflowData: [
-				this.helpers.returnJsonArray(req.body),
-			],
+			workflowData: [this.helpers.returnJsonArray(req.body as IDataObject)],
 		};
 	}
 }

@@ -1,45 +1,29 @@
 {
+	"extends": "@n8n/frontend-typescript-config",
 	"compilerOptions": {
-		"target": "esnext",
-		"module": "esnext",
-		"noImplicitAny": true,
-		"removeComments": true,
-		"strictNullChecks": true,
-		"forceConsistentCasingInFileNames": true,
-		"noImplicitReturns": true,
-		"strict": true,
-		"jsx": "preserve",
-		"skipLibCheck": true,
-		"importHelpers": true,
-		"moduleResolution": "node",
-		"esModuleInterop": true,
-		"allowSyntheticDefaultImports": true,
-		"sourceMap": true,
 		"baseUrl": ".",
+		"rootDirs": [
+			".",
+			"../../frontend/@n8n/composables/src",
+			"../design-system/src",
+			"../@n8n/chat/src"
+		],
+		"outDir": "dist",
 		"types": [
-			"webpack-env",
-			"jest"
+			"vitest/globals",
+			"unplugin-icons/types/vue",
+			"../design-system/src/shims-modules.d.ts"
 		],
 		"paths": {
-			"@/*": [
-				"src/*"
-			]
+			"@/*": ["./src/*"],
+			"n8n-design-system*": ["../design-system/src*"],
+			"@n8n/composables*": ["../frontend/@n8n/composables/src*"],
+			"@n8n/chat/*": ["../@n8n/chat/src/*"],
+			"@n8n/api-types*": ["../@n8n/api-types/src*"]
 		},
-		"lib": [
-			"esnext",
-			"dom",
-			"dom.iterable",
-			"scripthost"
-		]
+		// TODO: remove all options below this line
+		"useUnknownInCatchVariables": false
 	},
-	"include": [
-		"src/**/*.ts",
-		"src/**/*.tsx",
-		"src/**/*.vue",
-		"tests/**/*.ts",
-		"tests/**/*.tsx",
-	],
-	"exclude": [
-		"node_modules"
-	]
+	"include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/*.vue"],
+	"exclude": ["src/plugins/codemirror/typescript/worker/**/*.d.ts"]
 }

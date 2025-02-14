@@ -1,6 +1,4 @@
-import {
-	INodeProperties,
-} from 'n8n-workflow';
+import type { INodeProperties } from 'n8n-workflow';
 
 export const connectorOperations: INodeProperties[] = [
 	{
@@ -10,9 +8,7 @@ export const connectorOperations: INodeProperties[] = [
 		type: 'options',
 		displayOptions: {
 			show: {
-				resource: [
-					'connector',
-				],
+				resource: ['connector'],
 			},
 		},
 		options: [
@@ -20,6 +16,7 @@ export const connectorOperations: INodeProperties[] = [
 				name: 'Create',
 				value: 'create',
 				description: 'Create a connector',
+				action: 'Create a connector',
 			},
 		],
 		default: 'create',
@@ -33,18 +30,15 @@ export const connectorFields: INodeProperties[] = [
 	{
 		displayName: 'Connector Name',
 		name: 'name',
-		description: 'Connectors allow you to send Elastic Security cases into other systems (only ServiceNow, Jira, or IBM Resilient)',
+		description:
+			'Connectors allow you to send Elastic Security cases into other systems (only ServiceNow, Jira, or IBM Resilient)',
 		type: 'string',
 		required: true,
 		default: '',
 		displayOptions: {
 			show: {
-				resource: [
-					'connector',
-				],
-				operation: [
-					'create',
-				],
+				resource: ['connector'],
+				operation: ['create'],
 			},
 		},
 	},
@@ -70,12 +64,8 @@ export const connectorFields: INodeProperties[] = [
 		],
 		displayOptions: {
 			show: {
-				resource: [
-					'connector',
-				],
-				operation: [
-					'create',
-				],
+				resource: ['connector'],
+				operation: ['create'],
 			},
 		},
 	},
@@ -88,12 +78,8 @@ export const connectorFields: INodeProperties[] = [
 		default: '',
 		displayOptions: {
 			show: {
-				resource: [
-					'connector',
-				],
-				operation: [
-					'create',
-				],
+				resource: ['connector'],
+				operation: ['create'],
 			},
 		},
 	},
@@ -102,19 +88,14 @@ export const connectorFields: INodeProperties[] = [
 		name: 'email',
 		description: 'Jira-registered email',
 		type: 'string',
+		placeholder: 'name@email.com',
 		required: true,
 		default: '',
 		displayOptions: {
 			show: {
-				resource: [
-					'connector',
-				],
-				operation: [
-					'create',
-				],
-				connectorType: [
-					'.jira',
-				],
+				resource: ['connector'],
+				operation: ['create'],
+				connectorType: ['.jira'],
 			},
 		},
 	},
@@ -123,19 +104,14 @@ export const connectorFields: INodeProperties[] = [
 		name: 'apiToken',
 		description: 'Jira API token',
 		type: 'string',
+		typeOptions: { password: true },
 		required: true,
 		default: '',
 		displayOptions: {
 			show: {
-				resource: [
-					'connector',
-				],
-				operation: [
-					'create',
-				],
-				connectorType: [
-					'.jira',
-				],
+				resource: ['connector'],
+				operation: ['create'],
+				connectorType: ['.jira'],
 			},
 		},
 	},
@@ -148,15 +124,9 @@ export const connectorFields: INodeProperties[] = [
 		default: '',
 		displayOptions: {
 			show: {
-				resource: [
-					'connector',
-				],
-				operation: [
-					'create',
-				],
-				connectorType: [
-					'.jira',
-				],
+				resource: ['connector'],
+				operation: ['create'],
+				connectorType: ['.jira'],
 			},
 		},
 	},
@@ -169,15 +139,9 @@ export const connectorFields: INodeProperties[] = [
 		default: '',
 		displayOptions: {
 			show: {
-				resource: [
-					'connector',
-				],
-				operation: [
-					'create',
-				],
-				connectorType: [
-					'.servicenow',
-				],
+				resource: ['connector'],
+				operation: ['create'],
+				connectorType: ['.servicenow'],
 			},
 		},
 	},
@@ -186,19 +150,14 @@ export const connectorFields: INodeProperties[] = [
 		name: 'password',
 		description: 'ServiceNow ITSM password',
 		type: 'string',
+		typeOptions: { password: true },
 		required: true,
 		default: '',
 		displayOptions: {
 			show: {
-				resource: [
-					'connector',
-				],
-				operation: [
-					'create',
-				],
-				connectorType: [
-					'.servicenow',
-				],
+				resource: ['connector'],
+				operation: ['create'],
+				connectorType: ['.servicenow'],
 			},
 		},
 	},
@@ -207,19 +166,14 @@ export const connectorFields: INodeProperties[] = [
 		name: 'apiKeyId',
 		description: 'IBM Resilient API key ID',
 		type: 'string',
+		typeOptions: { password: true },
 		required: true,
 		default: '',
 		displayOptions: {
 			show: {
-				resource: [
-					'connector',
-				],
-				operation: [
-					'create',
-				],
-				connectorType: [
-					'.resilient',
-				],
+				resource: ['connector'],
+				operation: ['create'],
+				connectorType: ['.resilient'],
 			},
 		},
 	},
@@ -228,19 +182,14 @@ export const connectorFields: INodeProperties[] = [
 		name: 'apiKeySecret',
 		description: 'IBM Resilient API key secret',
 		type: 'string',
+		typeOptions: { password: true },
 		required: true,
 		default: '',
 		displayOptions: {
 			show: {
-				resource: [
-					'connector',
-				],
-				operation: [
-					'create',
-				],
-				connectorType: [
-					'.resilient',
-				],
+				resource: ['connector'],
+				operation: ['create'],
+				connectorType: ['.resilient'],
 			},
 		},
 	},
@@ -253,15 +202,9 @@ export const connectorFields: INodeProperties[] = [
 		default: '',
 		displayOptions: {
 			show: {
-				resource: [
-					'connector',
-				],
-				operation: [
-					'create',
-				],
-				connectorType: [
-					'.resilient',
-				],
+				resource: ['connector'],
+				operation: ['create'],
+				connectorType: ['.resilient'],
 			},
 		},
 	},

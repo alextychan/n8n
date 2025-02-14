@@ -1,19 +1,16 @@
-import {
-	INodeProperties,
-} from 'n8n-workflow';
+import type { INodeProperties } from 'n8n-workflow';
 
-export const userOperations = [
+export const userOperations: INodeProperties[] = [
 	{
 		displayName: 'Operation',
 		name: 'operation',
 		type: 'options',
+		noDataExpression: true,
 		description: 'Choose an operation',
 		required: true,
 		displayOptions: {
 			show: {
-				resource: [
-					'user',
-				],
+				resource: ['user'],
 			},
 		},
 		options: [
@@ -21,21 +18,24 @@ export const userOperations = [
 				name: 'Create',
 				value: 'create',
 				description: 'Create a user',
+				action: 'Create a user',
 			},
 			{
 				name: 'Get',
 				value: 'get',
 				description: 'Get a user',
+				action: 'Get a user',
 			},
 			{
-				name: 'Get All',
+				name: 'Get Many',
 				value: 'getAll',
-				description: 'Get all users',
+				description: 'Get many users',
+				action: 'Get many users',
 			},
 		],
 		default: 'create',
 	},
-] as INodeProperties[];
+];
 
 export const userFields: INodeProperties[] = [
 	/* -------------------------------------------------------------------------- */
@@ -48,34 +48,27 @@ export const userFields: INodeProperties[] = [
 		required: true,
 		displayOptions: {
 			show: {
-				resource: [
-					'user',
-				],
-				operation: [
-					'create',
-				],
+				resource: ['user'],
+				operation: ['create'],
 			},
 		},
 		default: '',
-		description: 'Name of the user to create.',
+		description: 'Name of the user to create',
 	},
 	{
 		displayName: 'Email',
 		name: 'email',
 		type: 'string',
+		placeholder: 'name@email.com',
 		required: true,
 		displayOptions: {
 			show: {
-				resource: [
-					'user',
-				],
-				operation: [
-					'create',
-				],
+				resource: ['user'],
+				operation: ['create'],
 			},
 		},
 		default: '',
-		description: 'Email of the user to create.',
+		description: 'Email of the user to create',
 	},
 	{
 		displayName: 'Username',
@@ -84,16 +77,12 @@ export const userFields: INodeProperties[] = [
 		required: true,
 		displayOptions: {
 			show: {
-				resource: [
-					'user',
-				],
-				operation: [
-					'create',
-				],
+				resource: ['user'],
+				operation: ['create'],
 			},
 		},
 		default: '',
-		description: `The username of the user to create.`,
+		description: 'The username of the user to create',
 	},
 	{
 		displayName: 'Password',
@@ -105,16 +94,12 @@ export const userFields: INodeProperties[] = [
 		required: true,
 		displayOptions: {
 			show: {
-				resource: [
-					'user',
-				],
-				operation: [
-					'create',
-				],
+				resource: ['user'],
+				operation: ['create'],
 			},
 		},
 		default: '',
-		description: `The password of the user to create.`,
+		description: 'The password of the user to create',
 	},
 	{
 		displayName: 'Additional Fields',
@@ -124,12 +109,8 @@ export const userFields: INodeProperties[] = [
 		default: {},
 		displayOptions: {
 			show: {
-				resource: [
-					'user',
-				],
-				operation: [
-					'create',
-				],
+				resource: ['user'],
+				operation: ['create'],
 			},
 		},
 		options: [
@@ -168,16 +149,12 @@ export const userFields: INodeProperties[] = [
 		required: true,
 		displayOptions: {
 			show: {
-				resource: [
-					'user',
-				],
-				operation: [
-					'get',
-				],
+				resource: ['user'],
+				operation: ['get'],
 			},
 		},
 		default: 'username',
-		description: 'What to search by.',
+		description: 'What to search by',
 	},
 	{
 		displayName: 'Username',
@@ -186,19 +163,13 @@ export const userFields: INodeProperties[] = [
 		required: true,
 		displayOptions: {
 			show: {
-				resource: [
-					'user',
-				],
-				operation: [
-					'get',
-				],
-				by: [
-					'username',
-				],
+				resource: ['user'],
+				operation: ['get'],
+				by: ['username'],
 			},
 		},
 		default: '',
-		description: `The username of the user to return.`,
+		description: 'The username of the user to return',
 	},
 	{
 		displayName: 'SSO External ID',
@@ -207,19 +178,13 @@ export const userFields: INodeProperties[] = [
 		required: true,
 		displayOptions: {
 			show: {
-				resource: [
-					'user',
-				],
-				operation: [
-					'get',
-				],
-				by: [
-					'externalId',
-				],
+				resource: ['user'],
+				operation: ['get'],
+				by: ['externalId'],
 			},
 		},
 		default: '',
-		description: `Discourse SSO external ID.`,
+		description: 'Discourse SSO external ID',
 	},
 
 	/* -------------------------------------------------------------------------- */
@@ -250,19 +215,19 @@ export const userFields: INodeProperties[] = [
 				name: 'Suspect',
 				value: 'suspect',
 			},
+			{
+				name: 'Suspended',
+				value: 'suspended',
+			},
 		],
 		displayOptions: {
 			show: {
-				resource: [
-					'user',
-				],
-				operation: [
-					'getAll',
-				],
+				resource: ['user'],
+				operation: ['getAll'],
 			},
 		},
 		default: '',
-		description: `User flags to search for.`,
+		description: 'User flags to search for',
 	},
 	{
 		displayName: 'Return All',
@@ -270,16 +235,12 @@ export const userFields: INodeProperties[] = [
 		type: 'boolean',
 		displayOptions: {
 			show: {
-				resource: [
-					'user',
-				],
-				operation: [
-					'getAll',
-				],
+				resource: ['user'],
+				operation: ['getAll'],
 			},
 		},
 		default: false,
-		description: 'If all results should be returned or only up to a given limit.',
+		description: 'Whether to return all results or only up to a given limit',
 	},
 	{
 		displayName: 'Limit',
@@ -287,15 +248,9 @@ export const userFields: INodeProperties[] = [
 		type: 'number',
 		displayOptions: {
 			show: {
-				resource: [
-					'user',
-				],
-				operation: [
-					'getAll',
-				],
-				returnAll: [
-					false,
-				],
+				resource: ['user'],
+				operation: ['getAll'],
+				returnAll: [false],
 			},
 		},
 		typeOptions: {
@@ -303,6 +258,95 @@ export const userFields: INodeProperties[] = [
 			maxValue: 100,
 		},
 		default: 50,
-		description: 'How many results to return.',
+		description: 'Max number of results to return',
+	},
+	{
+		displayName: 'Options',
+		name: 'options',
+		type: 'collection',
+		placeholder: 'Add option',
+		default: {},
+		displayOptions: {
+			show: {
+				resource: ['user'],
+				operation: ['getAll'],
+			},
+		},
+		options: [
+			{
+				displayName: 'Ascending',
+				name: 'asc',
+				type: 'boolean',
+				default: true,
+				description: 'Whether to sort ascending',
+			},
+			{
+				displayName: 'Order',
+				name: 'order',
+				type: 'options',
+				options: [
+					{
+						name: 'Created',
+						value: 'created',
+					},
+					{
+						name: 'Days Visited',
+						value: 'days_visited',
+					},
+					{
+						name: 'Email',
+						value: 'email',
+					},
+					{
+						name: 'Last Emailed',
+						value: 'last_emailed',
+					},
+					{
+						name: 'Posts',
+						value: 'posts',
+					},
+					{
+						name: 'Posts Read',
+						value: 'posts_read',
+					},
+					{
+						name: 'Read Time',
+						value: 'read_time',
+					},
+					{
+						name: 'Seen',
+						value: 'seen',
+					},
+					{
+						name: 'Topics Viewed',
+						value: 'topics_viewed',
+					},
+					{
+						name: 'Trust Level',
+						value: 'trust_level',
+					},
+					{
+						name: 'Username',
+						value: 'username',
+					},
+				],
+				default: 'created',
+				description: 'What to order by',
+			},
+			{
+				displayName: 'Show Emails',
+				name: 'showEmails',
+				type: 'boolean',
+				default: false,
+				description: 'Whether to include user email addresses',
+			},
+			{
+				displayName: 'Stats',
+				name: 'stats',
+				type: 'boolean',
+				default: false,
+				description: 'Whether to return user stats',
+			},
+		],
 	},
 ];

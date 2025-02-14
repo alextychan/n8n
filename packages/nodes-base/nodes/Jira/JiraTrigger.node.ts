@@ -1,23 +1,15 @@
-import {
+import type {
+	ICredentialDataDecryptedObject,
+	IDataObject,
 	IHookFunctions,
 	IWebhookFunctions,
-} from 'n8n-core';
-
-import {
-	IDataObject,
 	INodeType,
 	INodeTypeDescription,
 	IWebhookResponseData,
 } from 'n8n-workflow';
+import { NodeConnectionType, NodeOperationError } from 'n8n-workflow';
 
-import {
-	allEvents,
-	eventExists,
-	getId,
-	jiraSoftwareCloudApiRequest,
-} from './GenericFunctions';
-
-import * as queryString from 'querystring';
+import { allEvents, eventExists, getId, jiraSoftwareCloudApiRequest } from './GenericFunctions';
 
 export class JiraTrigger implements INodeType {
 	description: INodeTypeDescription = {
@@ -25,34 +17,60 @@ export class JiraTrigger implements INodeType {
 		name: 'jiraTrigger',
 		icon: 'file:jira.svg',
 		group: ['trigger'],
-		version: 1,
+		version: [1, 1.1],
 		description: 'Starts the workflow when Jira events occur',
 		defaults: {
 			name: 'Jira Trigger',
-			color: '#4185f7',
 		},
 		inputs: [],
-		outputs: ['main'],
+		outputs: [NodeConnectionType.Main],
 		credentials: [
 			{
+				displayName: 'Credentials to Connect to Jira',
 				name: 'jiraSoftwareCloudApi',
 				required: true,
 				displayOptions: {
 					show: {
-						jiraVersion: [
-							'cloud',
-						],
+						jiraVersion: ['cloud'],
 					},
 				},
 			},
 			{
+				displayName: 'Credentials to Connect to Jira',
 				name: 'jiraSoftwareServerApi',
 				required: true,
 				displayOptions: {
 					show: {
-						jiraVersion: [
-							'server',
-						],
+						jiraVersion: ['server'],
+					},
+				},
+			},
+			{
+				displayName: 'Credentials to Connect to Jira',
+				name: 'jiraSoftwareServerPatApi',
+				required: true,
+				displayOptions: {
+					show: {
+						jiraVersion: ['serverPat'],
+					},
+				},
+			},
+			{
+				// eslint-disable-next-line n8n-nodes-base/node-class-description-credentials-name-unsuffixed
+				name: 'httpQueryAuth',
+				displayName: 'Credentials to Authenticate Webhook',
+				displayOptions: {
+					show: {
+						authenticateWebhook: [true],
+					},
+				},
+			},
+			{
+				name: 'httpQueryAuth',
+				displayName: 'Credentials to Authenticate Webhook',
+				displayOptions: {
+					show: {
+						incomingAuthentication: ['queryAuth'],
 					},
 				},
 			},
@@ -79,8 +97,47 @@ export class JiraTrigger implements INodeType {
 						name: 'Server (Self Hosted)',
 						value: 'server',
 					},
+					{
+						name: 'Server (Pat) (Self Hosted)',
+						value: 'serverPat',
+					},
 				],
 				default: 'cloud',
+			},
+			{
+				displayName: 'Authenticate Incoming Webhook',
+				name: 'authenticateWebhook',
+				type: 'boolean',
+				default: false,
+				description:
+					'Whether authentication should be activated for the incoming webhooks (makes it more secure)',
+				displayOptions: {
+					show: {
+						'@version': [{ _cnd: { gte: 1.1 } }],
+					},
+				},
+			},
+			{
+				displayName: 'Authenticate Webhook With',
+				name: 'incomingAuthentication',
+				type: 'options',
+				options: [
+					{
+						name: 'Query Auth',
+						value: 'queryAuth',
+					},
+					{
+						name: 'None',
+						value: 'none',
+					},
+				],
+				default: 'none',
+				description: 'If authentication should be activated for the webhook (makes it more secure)',
+				displayOptions: {
+					show: {
+						'@version': [1],
+					},
+				},
 			},
 			{
 				displayName: 'Events',
@@ -250,7 +307,7 @@ export class JiraTrigger implements INodeType {
 				],
 				required: true,
 				default: [],
-				description: 'The events to listen to.',
+				description: 'The events to listen to',
 			},
 			{
 				displayName: 'Additional Fields',
@@ -264,18 +321,17 @@ export class JiraTrigger implements INodeType {
 						name: 'excludeBody',
 						type: 'boolean',
 						default: false,
-						description: 'Request with empty body will be sent to the URL. Leave unchecked if you want to receive JSON.',
+						description:
+							'Whether a request with empty body will be sent to the URL. Leave unchecked if you want to receive JSON.',
 					},
 					{
 						displayName: 'Filter',
 						name: 'filter',
 						type: 'string',
-						typeOptions: {
-							alwaysOpenEditWindow: true,
-						},
 						default: '',
 						placeholder: 'Project = JRA AND resolution = Fixed',
-						description: 'You can specify a JQL query to send only events triggered by matching issues. The JQL filter only applies to events under the Issue and Comment columns.',
+						description:
+							'You can specify a JQL query to send only events triggered by matching issues. The JQL filter only applies to events under the Issue and Comment columns.',
 					},
 					{
 						displayName: 'Include Fields',
@@ -346,7 +402,6 @@ export class JiraTrigger implements INodeType {
 		],
 	};
 
-	// @ts-ignore (because of request)
 	webhookMethods = {
 		default: {
 			async checkExists(this: IHookFunctions): Promise<boolean> {
@@ -356,13 +411,13 @@ export class JiraTrigger implements INodeType {
 
 				const events = this.getNodeParameter('events') as string[];
 
-				const endpoint = `/webhooks/1.0/webhook`;
+				const endpoint = '/webhooks/1.0/webhook';
 
 				const webhooks = await jiraSoftwareCloudApiRequest.call(this, endpoint, 'GET', {});
 
 				for (const webhook of webhooks) {
-					if (webhook.url === webhookUrl && eventExists(events, webhook.events)) {
-						webhookData.webhookId = getId(webhook.self);
+					if (webhook.url === webhookUrl && eventExists(events, webhook.events as string[])) {
+						webhookData.webhookId = getId(webhook.self as string);
 						return true;
 					}
 				}
@@ -370,15 +425,24 @@ export class JiraTrigger implements INodeType {
 				return false;
 			},
 			async create(this: IHookFunctions): Promise<boolean> {
+				const nodeVersion = this.getNode().typeVersion;
 				const webhookUrl = this.getNodeWebhookUrl('default') as string;
-
 				let events = this.getNodeParameter('events', []) as string[];
-
 				const additionalFields = this.getNodeParameter('additionalFields') as IDataObject;
-
-				const endpoint = `/webhooks/1.0/webhook`;
-
+				const endpoint = '/webhooks/1.0/webhook';
 				const webhookData = this.getWorkflowStaticData('node');
+
+				let authenticateWebhook = false;
+
+				if (nodeVersion === 1) {
+					const incomingAuthentication = this.getNodeParameter('incomingAuthentication') as string;
+
+					if (incomingAuthentication === 'queryAuth') {
+						authenticateWebhook = true;
+					}
+				} else {
+					authenticateWebhook = this.getNodeParameter('authenticateWebhook') as boolean;
+				}
 
 				if (events.includes('*')) {
 					events = allEvents;
@@ -388,8 +452,7 @@ export class JiraTrigger implements INodeType {
 					name: `n8n-webhook:${webhookUrl}`,
 					url: webhookUrl,
 					events,
-					filters: {
-					},
+					filters: {},
 					excludeBody: false,
 				};
 
@@ -403,18 +466,41 @@ export class JiraTrigger implements INodeType {
 					body.excludeBody = additionalFields.excludeBody as boolean;
 				}
 
+				const parameters: any = {};
+
+				if (authenticateWebhook) {
+					let httpQueryAuth;
+					try {
+						httpQueryAuth = await this.getCredentials('httpQueryAuth');
+					} catch (e) {
+						throw new NodeOperationError(
+							this.getNode(),
+							new Error('Could not retrieve HTTP Query Auth credentials', { cause: e }),
+						);
+					}
+					if (!httpQueryAuth.name && !httpQueryAuth.value) {
+						throw new NodeOperationError(this.getNode(), 'HTTP Query Auth credentials are empty');
+					}
+					parameters[encodeURIComponent(httpQueryAuth.name as string)] = Buffer.from(
+						httpQueryAuth.value as string,
+					).toString('base64');
+				}
+
 				if (additionalFields.includeFields) {
-					// tslint:disable-next-line: no-any
-					const parameters: any = {};
 					for (const field of additionalFields.includeFields as string[]) {
+						// eslint-disable-next-line n8n-local-rules/no-interpolation-in-regular-string
 						parameters[field] = '${' + field + '}';
 					}
-					body.url = `${body.url}?${queryString.unescape(queryString.stringify(parameters))}`;
+				}
+
+				if (Object.keys(parameters as IDataObject).length) {
+					const params = new URLSearchParams(parameters as string).toString();
+					body.url = `${body.url}?${decodeURIComponent(params)}`;
 				}
 
 				const responseData = await jiraSoftwareCloudApiRequest.call(this, endpoint, 'POST', body);
 
-				webhookData.webhookId = getId(responseData.self);
+				webhookData.webhookId = getId(responseData.self as string);
 
 				return true;
 			},
@@ -431,7 +517,7 @@ export class JiraTrigger implements INodeType {
 						return false;
 					}
 					// Remove from the static workflow data so that it is clear
-					// that no webhooks are registred anymore
+					// that no webhooks are registered anymore
 					delete webhookData.webhookId;
 				}
 
@@ -441,15 +527,60 @@ export class JiraTrigger implements INodeType {
 	};
 
 	async webhook(this: IWebhookFunctions): Promise<IWebhookResponseData> {
+		const nodeVersion = this.getNode().typeVersion;
 		const bodyData = this.getBodyData();
-		const queryData = this.getQueryData();
+		const queryData = this.getQueryData() as IDataObject;
+		const response = this.getResponseObject();
 
-		Object.assign(bodyData, queryData);
+		let authenticateWebhook = false;
+
+		if (nodeVersion === 1) {
+			const incomingAuthentication = this.getNodeParameter('incomingAuthentication') as string;
+
+			if (incomingAuthentication === 'queryAuth') {
+				authenticateWebhook = true;
+			}
+		} else {
+			authenticateWebhook = this.getNodeParameter('authenticateWebhook') as boolean;
+		}
+
+		if (authenticateWebhook) {
+			let httpQueryAuth: ICredentialDataDecryptedObject | undefined;
+
+			try {
+				httpQueryAuth = await this.getCredentials<ICredentialDataDecryptedObject>('httpQueryAuth');
+			} catch (error) {}
+
+			if (httpQueryAuth === undefined || !httpQueryAuth.name || !httpQueryAuth.value) {
+				response
+					.status(403)
+					.json({ message: 'Auth settings are not valid, some data are missing' });
+
+				return {
+					noWebhookResponse: true,
+				};
+			}
+
+			const paramName = httpQueryAuth.name as string;
+			const paramValue = Buffer.from(httpQueryAuth.value as string).toString('base64');
+
+			if (!queryData.hasOwnProperty(paramName) || queryData[paramName] !== paramValue) {
+				response.status(403).json({ message: 'Provided authentication data is not valid' });
+
+				return {
+					noWebhookResponse: true,
+				};
+			}
+
+			delete queryData[paramName];
+
+			Object.assign(bodyData, queryData);
+		} else {
+			Object.assign(bodyData, queryData);
+		}
 
 		return {
-			workflowData: [
-				this.helpers.returnJsonArray(bodyData),
-			],
+			workflowData: [this.helpers.returnJsonArray(bodyData)],
 		};
 	}
 }

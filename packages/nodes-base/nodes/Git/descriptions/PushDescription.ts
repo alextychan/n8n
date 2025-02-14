@@ -1,20 +1,16 @@
-import {
-	INodeProperties,
-} from 'n8n-workflow';
+import type { INodeProperties } from 'n8n-workflow';
 
-export const pushFields = [
+export const pushFields: INodeProperties[] = [
 	{
 		displayName: 'Options',
 		name: 'options',
 		type: 'collection',
 		displayOptions: {
 			show: {
-				operation: [
-					'push',
-				],
+				operation: ['push'],
 			},
 		},
-		placeholder: 'Add Option',
+		placeholder: 'Add option',
 		default: {},
 		options: [
 			{
@@ -23,8 +19,8 @@ export const pushFields = [
 				type: 'string',
 				default: '',
 				placeholder: 'https://github.com/n8n-io/n8n',
-				description: 'The URL or path of the repository to push to.',
+				description: 'The URL or path of the repository to push to',
 			},
 		],
 	},
-] as INodeProperties[];
+];

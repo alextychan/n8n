@@ -1,7 +1,6 @@
-import { 
-	INodeProperties,
-	INodeTypeDescription,
-} from 'n8n-workflow';
+/* eslint-disable n8n-nodes-base/node-filename-against-convention */
+import { NodeConnectionType, type INodeTypeDescription } from 'n8n-workflow';
+
 import * as channel from './channel';
 import * as message from './message';
 import * as reaction from './reaction';
@@ -17,10 +16,9 @@ export const versionDescription: INodeTypeDescription = {
 	description: 'Sends data to Mattermost',
 	defaults: {
 		name: 'Mattermost',
-		color: '#000000',
 	},
-	inputs: ['main'],
-	outputs: ['main'],
+	inputs: [NodeConnectionType.Main],
+	outputs: [NodeConnectionType.Main],
 	credentials: [
 		{
 			name: 'mattermostApi',
@@ -32,6 +30,7 @@ export const versionDescription: INodeTypeDescription = {
 			displayName: 'Resource',
 			name: 'resource',
 			type: 'options',
+			noDataExpression: true,
 			options: [
 				{
 					name: 'Channel',
@@ -51,7 +50,6 @@ export const versionDescription: INodeTypeDescription = {
 				},
 			],
 			default: 'message',
-			description: 'The resource to operate on',
 		},
 		...channel.descriptions,
 		...message.descriptions,

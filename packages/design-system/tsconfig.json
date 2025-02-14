@@ -1,29 +1,20 @@
 {
+	"extends": "@n8n/frontend-typescript-config",
 	"compilerOptions": {
-		"target": "esnext",
-		"module": "esnext",
-		"strict": true,
-		"jsx": "preserve",
-		"importHelpers": true,
-		"moduleResolution": "node",
-		"experimentalDecorators": true,
-		"skipLibCheck": true,
-		"esModuleInterop": true,
-		"allowSyntheticDefaultImports": true,
-		"sourceMap": true,
 		"baseUrl": ".",
-		"types": ["webpack-env", "jest"],
+		"rootDirs": [".", "../../frontend/@n8n/composables/src"],
+		"outDir": "dist",
+		"types": ["vite/client", "vitest/globals"],
+		"typeRoots": [
+			"./node_modules/@testing-library",
+			"./node_modules/@types",
+			"../../node_modules",
+			"../../node_modules/@types"
+		],
 		"paths": {
-			"@/*": ["src/*"]
-		},
-		"lib": ["esnext", "dom", "dom.iterable", "scripthost"]
+			"n8n-design-system*": ["./src*"],
+			"@n8n/composables*": ["../frontend/@n8n/composables/src*"]
+		}
 	},
-	"include": [
-		"src/**/*.ts",
-		"src/**/*.tsx",
-		"src/**/*.vue",
-		"tests/**/*.ts",
-		"tests/**/*.tsx"
-	],
-	"exclude": ["node_modules"]
+	"include": ["src/**/*.ts", "src/**/*.vue"]
 }

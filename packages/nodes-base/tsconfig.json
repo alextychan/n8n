@@ -1,33 +1,25 @@
 {
+	"extends": ["../../tsconfig.json", "../../tsconfig.backend.json"],
 	"compilerOptions": {
-		"lib": [
-			"es2017",
-			"es2019.array"
-		],
-		"types": [
-			"node",
-			"jest"
-		],
-		"module": "commonjs",
-		"noImplicitAny": true,
-		"removeComments": true,
-		"strictNullChecks": true,
-		"strict": true,
-		"preserveConstEnums": true,
-		"resolveJsonModule": true,
-		"declaration": true,
-		"outDir": "./dist/",
-		"target": "es2017",
-		"sourceMap": true
+		"paths": {
+			"@test/*": ["./test/*"],
+			"@utils/*": ["./utils/*"]
+		},
+		"tsBuildInfoFile": "dist/typecheck.tsbuildinfo",
+		// TODO: remove all options below this line
+		"noImplicitReturns": false,
+		"useUnknownInCatchVariables": false
 	},
 	"include": [
-		"credentials/**/*",
-		"src/**/*",
-		"nodes/**/*",
-		"nodes/**/*.json",
-		"test/**/*"
+		"credentials/**/*.ts",
+		"nodes/**/*.ts",
+		"test/**/*.ts",
+		"utils/**/*.ts",
+		"types/**/*.ts"
 	],
-	"exclude": [
-		"**/*.spec.ts"
+	"references": [
+		{ "path": "../@n8n/imap/tsconfig.build.json" },
+		{ "path": "../workflow/tsconfig.build.json" },
+		{ "path": "../core/tsconfig.build.json" }
 	]
 }

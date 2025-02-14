@@ -1,17 +1,14 @@
-import {
-	INodeProperties,
-} from 'n8n-workflow';
+import type { INodeProperties } from 'n8n-workflow';
 
-export const documentOperations = [
+export const documentOperations: INodeProperties[] = [
 	{
 		displayName: 'Operation',
 		name: 'operation',
 		type: 'options',
+		noDataExpression: true,
 		displayOptions: {
 			show: {
-				resource: [
-					'document',
-				],
+				resource: ['document'],
 			},
 		},
 		options: [
@@ -19,26 +16,32 @@ export const documentOperations = [
 				name: 'Create',
 				value: 'create',
 				description: 'Create a document',
+				action: 'Create a document',
 			},
 			{
-				name: 'Create/Update',
+				name: 'Create or Update',
 				value: 'upsert',
-				description: 'Create/Update a document',
+				description:
+					'Create a new document, or update the current one if it already exists (upsert)',
+				action: 'Create or update a document',
 			},
 			{
 				name: 'Delete',
 				value: 'delete',
 				description: 'Delete a document',
+				action: 'Delete a document',
 			},
 			{
 				name: 'Get',
 				value: 'get',
 				description: 'Get a document',
+				action: 'Get a document',
 			},
 			{
-				name: 'Get All',
+				name: 'Get Many',
 				value: 'getAll',
-				description: 'Get all documents from a collection',
+				description: 'Get many documents from a collection',
+				action: 'Get many documents',
 			},
 			// {
 			// 	name: 'Update',
@@ -49,19 +52,19 @@ export const documentOperations = [
 				name: 'Query',
 				value: 'query',
 				description: 'Runs a query against your documents',
+				action: 'Query a document',
 			},
 		],
 		default: 'get',
-		description: 'The operation to perform.',
 	},
-] as INodeProperties[];
+];
 
-export const documentFields = [
+export const documentFields: INodeProperties[] = [
 	/* -------------------------------------------------------------------------- */
 	/*                                document:create                             */
 	/* -------------------------------------------------------------------------- */
 	{
-		displayName: 'Project ID',
+		displayName: 'Project Name or ID',
 		name: 'projectId',
 		type: 'options',
 		default: '',
@@ -70,15 +73,12 @@ export const documentFields = [
 		},
 		displayOptions: {
 			show: {
-				resource: [
-					'document',
-				],
-				operation: [
-					'create',
-				],
+				resource: ['document'],
+				operation: ['create'],
 			},
 		},
-		description: 'As displayed in firebase console URL.',
+		description:
+			'As displayed in firebase console URL. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
 		required: true,
 	},
 	{
@@ -88,12 +88,8 @@ export const documentFields = [
 		default: '(default)',
 		displayOptions: {
 			show: {
-				resource: [
-					'document',
-				],
-				operation: [
-					'create',
-				],
+				resource: ['document'],
+				operation: ['create'],
 			},
 		},
 		description: 'Usually the provided default value will work',
@@ -106,109 +102,8 @@ export const documentFields = [
 		default: '',
 		displayOptions: {
 			show: {
-				resource: [
-					'document',
-				],
-				operation: [
-					'create',
-				],
-			},
-		},
-		description: 'Collection name',
-		required: true,
-	},
-	{
-		displayName: 'Columns / attributes',
-		name: 'columns',
-		type: 'string',
-		default: '',
-		displayOptions: {
-			show: {
-				resource: [
-					'document',
-				],
-				operation: [
-					'create',
-				],
-			},
-		},
-		description: 'List of attributes to save',
-		required: true,
-		placeholder: 'productId, modelName, description',
-	},
-	{
-		displayName: 'Simplify Response',
-		name: 'simple',
-		type: 'boolean',
-		displayOptions: {
-			show: {
-				operation: [
-					'create',
-				],
-				resource: [
-					'document',
-				],
-			},
-		},
-		default: true,
-		description: 'Return a simplified version of the response instead of the raw data.',
-	},
-
-	/* -------------------------------------------------------------------------- */
-	/*                                document:get                                */
-	/* -------------------------------------------------------------------------- */
-	{
-		displayName: 'Project ID',
-		name: 'projectId',
-		type: 'options',
-		default: '',
-		typeOptions: {
-			loadOptionsMethod: 'getProjects',
-		},
-		displayOptions: {
-			show: {
-				resource: [
-					'document',
-				],
-				operation: [
-					'get',
-				],
-			},
-		},
-		description: 'As displayed in firebase console URL',
-		required: true,
-	},
-	{
-		displayName: 'Database',
-		name: 'database',
-		type: 'string',
-		default: '(default)',
-		displayOptions: {
-			show: {
-				resource: [
-					'document',
-				],
-				operation: [
-					'get',
-				],
-			},
-		},
-		description: 'Usually the provided default value will work',
-		required: true,
-	},
-	{
-		displayName: 'Collection',
-		name: 'collection',
-		type: 'string',
-		default: '',
-		displayOptions: {
-			show: {
-				resource: [
-					'document',
-				],
-				operation: [
-					'get',
-				],
+				resource: ['document'],
+				operation: ['create'],
 			},
 		},
 		description: 'Collection name',
@@ -220,41 +115,46 @@ export const documentFields = [
 		type: 'string',
 		displayOptions: {
 			show: {
-				operation: [
-					'get',
-				],
-				resource: [
-					'document',
-				],
+				resource: ['document'],
+				operation: ['create'],
 			},
 		},
 		default: '',
-		description: 'Document ID',
-		required: true,
 	},
 	{
-		displayName: 'Simplify Response',
+		displayName: 'Columns / Attributes',
+		name: 'columns',
+		type: 'string',
+		default: '',
+		displayOptions: {
+			show: {
+				resource: ['document'],
+				operation: ['create'],
+			},
+		},
+		description: 'List of attributes to save',
+		required: true,
+		placeholder: 'productId, modelName, description',
+	},
+	{
+		displayName: 'Simplify',
 		name: 'simple',
 		type: 'boolean',
 		displayOptions: {
 			show: {
-				operation: [
-					'get',
-				],
-				resource: [
-					'document',
-				],
+				operation: ['create'],
+				resource: ['document'],
 			},
 		},
 		default: true,
-		description: 'Return a simplified version of the response instead of the raw data.',
+		description: 'Whether to return a simplified version of the response instead of the raw data',
 	},
 
 	/* -------------------------------------------------------------------------- */
-	/*                              document:getAll                               */
+	/*                                document:get                                */
 	/* -------------------------------------------------------------------------- */
 	{
-		displayName: 'Project ID',
+		displayName: 'Project Name or ID',
 		name: 'projectId',
 		type: 'options',
 		default: '',
@@ -263,15 +163,12 @@ export const documentFields = [
 		},
 		displayOptions: {
 			show: {
-				resource: [
-					'document',
-				],
-				operation: [
-					'getAll',
-				],
+				resource: ['document'],
+				operation: ['get'],
 			},
 		},
-		description: 'As displayed in firebase console URL',
+		description:
+			'As displayed in firebase console URL. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
 		required: true,
 	},
 	{
@@ -281,12 +178,8 @@ export const documentFields = [
 		default: '(default)',
 		displayOptions: {
 			show: {
-				resource: [
-					'document',
-				],
-				operation: [
-					'getAll',
-				],
+				resource: ['document'],
+				operation: ['get'],
 			},
 		},
 		description: 'Usually the provided default value will work',
@@ -299,12 +192,84 @@ export const documentFields = [
 		default: '',
 		displayOptions: {
 			show: {
-				resource: [
-					'document',
-				],
-				operation: [
-					'getAll',
-				],
+				resource: ['document'],
+				operation: ['get'],
+			},
+		},
+		description: 'Collection name',
+		required: true,
+	},
+	{
+		displayName: 'Document ID',
+		name: 'documentId',
+		type: 'string',
+		displayOptions: {
+			show: {
+				operation: ['get'],
+				resource: ['document'],
+			},
+		},
+		default: '',
+		required: true,
+	},
+	{
+		displayName: 'Simplify',
+		name: 'simple',
+		type: 'boolean',
+		displayOptions: {
+			show: {
+				operation: ['get'],
+				resource: ['document'],
+			},
+		},
+		default: true,
+		description: 'Whether to return a simplified version of the response instead of the raw data',
+	},
+
+	/* -------------------------------------------------------------------------- */
+	/*                              document:getAll                               */
+	/* -------------------------------------------------------------------------- */
+	{
+		displayName: 'Project Name or ID',
+		name: 'projectId',
+		type: 'options',
+		default: '',
+		typeOptions: {
+			loadOptionsMethod: 'getProjects',
+		},
+		displayOptions: {
+			show: {
+				resource: ['document'],
+				operation: ['getAll'],
+			},
+		},
+		description:
+			'As displayed in firebase console URL. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
+		required: true,
+	},
+	{
+		displayName: 'Database',
+		name: 'database',
+		type: 'string',
+		default: '(default)',
+		displayOptions: {
+			show: {
+				resource: ['document'],
+				operation: ['getAll'],
+			},
+		},
+		description: 'Usually the provided default value will work',
+		required: true,
+	},
+	{
+		displayName: 'Collection',
+		name: 'collection',
+		type: 'string',
+		default: '',
+		displayOptions: {
+			show: {
+				resource: ['document'],
+				operation: ['getAll'],
 			},
 		},
 		description: 'Collection name',
@@ -317,15 +282,11 @@ export const documentFields = [
 		default: false,
 		displayOptions: {
 			show: {
-				resource: [
-					'document',
-				],
-				operation: [
-					'getAll',
-				],
+				resource: ['document'],
+				operation: ['getAll'],
 			},
 		},
-		description: 'If all results should be returned or only up to a given limit.',
+		description: 'Whether to return all results or only up to a given limit',
 		required: true,
 	},
 	{
@@ -334,15 +295,9 @@ export const documentFields = [
 		type: 'number',
 		displayOptions: {
 			show: {
-				resource: [
-					'document',
-				],
-				operation: [
-					'getAll',
-				],
-				returnAll: [
-					false,
-				],
+				resource: ['document'],
+				operation: ['getAll'],
+				returnAll: [false],
 			},
 		},
 		typeOptions: {
@@ -350,31 +305,27 @@ export const documentFields = [
 			maxValue: 500,
 		},
 		default: 100,
-		description: 'How many results to return.',
+		description: 'Max number of results to return',
 	},
 	{
-		displayName: 'Simplify Response',
+		displayName: 'Simplify',
 		name: 'simple',
 		type: 'boolean',
 		displayOptions: {
 			show: {
-				operation: [
-					'getAll',
-				],
-				resource: [
-					'document',
-				],
+				operation: ['getAll'],
+				resource: ['document'],
 			},
 		},
 		default: true,
-		description: 'Return a simplified version of the response instead of the raw data.',
+		description: 'Whether to return a simplified version of the response instead of the raw data',
 	},
 
 	/* -------------------------------------------------------------------------- */
 	/*                              document:delete                               */
 	/* -------------------------------------------------------------------------- */
 	{
-		displayName: 'Project ID',
+		displayName: 'Project Name or ID',
 		name: 'projectId',
 		type: 'options',
 		default: '',
@@ -383,15 +334,12 @@ export const documentFields = [
 		},
 		displayOptions: {
 			show: {
-				resource: [
-					'document',
-				],
-				operation: [
-					'delete',
-				],
+				resource: ['document'],
+				operation: ['delete'],
 			},
 		},
-		description: 'As displayed in firebase console URL',
+		description:
+			'As displayed in firebase console URL. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
 		required: true,
 	},
 	{
@@ -401,12 +349,8 @@ export const documentFields = [
 		default: '(default)',
 		displayOptions: {
 			show: {
-				resource: [
-					'document',
-				],
-				operation: [
-					'delete',
-				],
+				resource: ['document'],
+				operation: ['delete'],
 			},
 		},
 		description: 'Usually the provided default value will work',
@@ -419,12 +363,8 @@ export const documentFields = [
 		default: '',
 		displayOptions: {
 			show: {
-				resource: [
-					'document',
-				],
-				operation: [
-					'delete',
-				],
+				resource: ['document'],
+				operation: ['delete'],
 			},
 		},
 		description: 'Collection name',
@@ -436,16 +376,11 @@ export const documentFields = [
 		type: 'string',
 		displayOptions: {
 			show: {
-				operation: [
-					'delete',
-				],
-				resource: [
-					'document',
-				],
+				operation: ['delete'],
+				resource: ['document'],
 			},
 		},
 		default: '',
-		description: 'Document ID',
 		required: true,
 	},
 	// 	/* ---------------------------------------------------------------------- */
@@ -567,7 +502,7 @@ export const documentFields = [
 	/*                              document:upsert                               */
 	/* -------------------------------------------------------------------------- */
 	{
-		displayName: 'Project ID',
+		displayName: 'Project Name or ID',
 		name: 'projectId',
 		type: 'options',
 		default: '',
@@ -576,15 +511,12 @@ export const documentFields = [
 		},
 		displayOptions: {
 			show: {
-				resource: [
-					'document',
-				],
-				operation: [
-					'upsert',
-				],
+				resource: ['document'],
+				operation: ['upsert'],
 			},
 		},
-		description: 'As displayed in firebase console URL',
+		description:
+			'As displayed in firebase console URL. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
 		required: true,
 	},
 	{
@@ -594,12 +526,8 @@ export const documentFields = [
 		default: '(default)',
 		displayOptions: {
 			show: {
-				resource: [
-					'document',
-				],
-				operation: [
-					'upsert',
-				],
+				resource: ['document'],
+				operation: ['upsert'],
 			},
 		},
 		description: 'Usually the provided default value will work',
@@ -612,12 +540,8 @@ export const documentFields = [
 		default: '',
 		displayOptions: {
 			show: {
-				resource: [
-					'document',
-				],
-				operation: [
-					'upsert',
-				],
+				resource: ['document'],
+				operation: ['upsert'],
 			},
 		},
 		description: 'Collection name',
@@ -629,12 +553,8 @@ export const documentFields = [
 		type: 'string',
 		displayOptions: {
 			show: {
-				resource: [
-					'document',
-				],
-				operation: [
-					'upsert',
-				],
+				resource: ['document'],
+				operation: ['upsert'],
 			},
 		},
 		default: '',
@@ -649,12 +569,8 @@ export const documentFields = [
 		default: '',
 		displayOptions: {
 			show: {
-				resource: [
-					'document',
-				],
-				operation: [
-					'upsert',
-				],
+				resource: ['document'],
+				operation: ['upsert'],
 			},
 		},
 		description: 'Columns to insert',
@@ -665,7 +581,7 @@ export const documentFields = [
 	/*                              document:query                                */
 	/* -------------------------------------------------------------------------- */
 	{
-		displayName: 'Project ID',
+		displayName: 'Project Name or ID',
 		name: 'projectId',
 		type: 'options',
 		default: '',
@@ -674,15 +590,12 @@ export const documentFields = [
 		},
 		displayOptions: {
 			show: {
-				resource: [
-					'document',
-				],
-				operation: [
-					'query',
-				],
+				resource: ['document'],
+				operation: ['query'],
 			},
 		},
-		description: 'As displayed in firebase console URL',
+		description:
+			'As displayed in firebase console URL. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
 		required: true,
 	},
 	{
@@ -692,12 +605,8 @@ export const documentFields = [
 		default: '(default)',
 		displayOptions: {
 			show: {
-				resource: [
-					'document',
-				],
-				operation: [
-					'query',
-				],
+				resource: ['document'],
+				operation: ['query'],
 			},
 		},
 		description: 'Usually the provided default value will work',
@@ -710,36 +619,26 @@ export const documentFields = [
 		default: '',
 		displayOptions: {
 			show: {
-				resource: [
-					'document',
-				],
-				operation: [
-					'query',
-				],
+				resource: ['document'],
+				operation: ['query'],
 			},
 		},
 		description: 'JSON query to execute',
 		required: true,
-		typeOptions: {
-			alwaysOpenEditWindow: true,
-		},
-		placeholder: '{"structuredQuery": {"where": {"fieldFilter": {"field": {"fieldPath": "age"},"op": "EQUAL", "value": {"integerValue": 28}}}, "from": [{"collectionId": "users-collection"}]}}',
+		placeholder:
+			'{"structuredQuery": {"where": {"fieldFilter": {"field": {"fieldPath": "age"},"op": "EQUAL", "value": {"integerValue": 28}}}, "from": [{"collectionId": "users-collection"}]}}',
 	},
 	{
-		displayName: 'Simplify Response',
+		displayName: 'Simplify',
 		name: 'simple',
 		type: 'boolean',
 		displayOptions: {
 			show: {
-				operation: [
-					'query',
-				],
-				resource: [
-					'document',
-				],
+				operation: ['query'],
+				resource: ['document'],
 			},
 		},
 		default: true,
-		description: 'Return a simplified version of the response instead of the raw data.',
+		description: 'Whether to return a simplified version of the response instead of the raw data',
 	},
-] as INodeProperties[];
+];

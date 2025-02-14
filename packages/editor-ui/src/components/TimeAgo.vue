@@ -1,59 +1,67 @@
-<template functional>
-	<span :title="$options.methods.convertToHumanReadableDate($props)">
-		{{$options.methods.format(props)}}
-	</span>
-</template>
+<script lang="ts" setup>
+import { format, register } from 'timeago.js';
+import { convertToHumanReadableDate } from '@/utils/typesUtils';
+import { computed, onBeforeMount } from 'vue';
+import { useRootStore } from '@/stores/root.store';
+import { useI18n } from '@/composables/useI18n';
 
-<script lang="ts">
-import { format, LocaleFunc, register } from 'timeago.js';
-import { convertToHumanReadableDate } from './helpers';
+type Props = {
+	date: string;
+	capitalize?: boolean;
+};
 
-const localeFunc = (num: number, index: number, totalSec: number): [string, string] => {
+const props = withDefaults(defineProps<Props>(), {
+	capitalize: false,
+});
+
+const rootStore = useRootStore();
+const i18n = useI18n();
+
+const defaultLocale = computed(() => rootStore.defaultLocale);
+const formatted = computed(() => {
+	const text = format(props.date, defaultLocale.value);
+
+	if (!props.capitalize) {
+		return text.toLowerCase();
+	}
+
+	return text;
+});
+
+const convertDate = computed(() => {
+	const date = new Date(props.date);
+	const epoch = date.getTime();
+	return convertToHumanReadableDate(epoch);
+});
+
+onBeforeMount(() => {
+	register(defaultLocale.value, localeFunc);
+});
+
+function localeFunc(_: number, index: number): [string, string] {
 	// number: the timeago / timein number;
 	// index: the index of array below;
-	// totalSec: total seconds between date to be formatted and today's date;
 	return [
-		['Just now', 'Right now'],
-		['Just now', 'Right now'], // ['%s seconds ago', 'in %s seconds'],
-		['1 minute ago', 'in 1 minute'],
-		['%s minutes ago', 'in %s minutes'],
-		['1 hour ago', 'in 1 hour'],
-		['%s hours ago', 'in %s hours'],
-		['1 day ago', 'in 1 day'],
-		['%s days ago', 'in %s days'],
-		['1 week ago', 'in 1 week'],
-		['%s weeks ago', 'in %s weeks'],
-		['1 month ago', 'in 1 month'],
-		['%s months ago', 'in %s months'],
-		['1 year ago', 'in 1 year'],
-		['%s years ago', 'in %s years'],
+		[i18n.baseText('timeAgo.justNow'), i18n.baseText('timeAgo.rightNow')],
+		[i18n.baseText('timeAgo.justNow'), i18n.baseText('timeAgo.rightNow')], // ['%s seconds ago', 'in %s seconds'],
+		[i18n.baseText('timeAgo.oneMinuteAgo'), i18n.baseText('timeAgo.inOneMinute')],
+		[i18n.baseText('timeAgo.minutesAgo'), i18n.baseText('timeAgo.inMinutes')],
+		[i18n.baseText('timeAgo.oneHourAgo'), i18n.baseText('timeAgo.inOneHour')],
+		[i18n.baseText('timeAgo.hoursAgo'), i18n.baseText('timeAgo.inHours')],
+		[i18n.baseText('timeAgo.oneDayAgo'), i18n.baseText('timeAgo.inOneDay')],
+		[i18n.baseText('timeAgo.daysAgo'), i18n.baseText('timeAgo.inDays')],
+		[i18n.baseText('timeAgo.oneWeekAgo'), i18n.baseText('timeAgo.inOneWeek')],
+		[i18n.baseText('timeAgo.weeksAgo'), i18n.baseText('timeAgo.inWeeks')],
+		[i18n.baseText('timeAgo.oneMonthAgo'), i18n.baseText('timeAgo.inOneMonth')],
+		[i18n.baseText('timeAgo.monthsAgo'), i18n.baseText('timeAgo.inMonths')],
+		[i18n.baseText('timeAgo.oneYearAgo'), i18n.baseText('timeAgo.inOneYear')],
+		[i18n.baseText('timeAgo.yearsAgo'), i18n.baseText('timeAgo.inYears')],
 	][index] as [string, string];
-};
-
-register('main', localeFunc as LocaleFunc);
-
-export default {
-	name: 'UpdatesPanel',
-	props: {
-		date: {
-			type: String,
-		},
-		capitalize: {
-			type: Boolean,
-			default: false,
-		},
-	},
-	methods: {
-		format(props: {date: string, capitalize: boolean}) {
-			const text = format(props.date, 'main');
-
-			if (!props.capitalize) {
-				return text.toLowerCase();
-			}
-
-			return text;
-		},
-		convertToHumanReadableDate,
-	},
-};
+}
 </script>
+
+<template>
+	<span :title="convertDate">
+		{{ formatted }}
+	</span>
+</template>

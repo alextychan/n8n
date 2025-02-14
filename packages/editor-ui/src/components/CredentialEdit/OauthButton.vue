@@ -1,41 +1,26 @@
-<template>
-	<span>
-		<img
-			v-if="isGoogleOAuthType"
-			:src="basePath + 'google-signin-light.png'"
-			:class="$style.googleIcon"
-			alt="Sign in with Google"
-			@click.stop="$emit('click')"
-		/>
-		<n8n-button
-			v-else
-			label="Connect my account"
-			size="large"
-			@click.stop="$emit('click')"
-		/>
-	</span>
-</template>
+<script lang="ts" setup>
+import { useI18n } from '@/composables/useI18n';
+import GoogleAuthButton from './GoogleAuthButton.vue';
 
-<script lang="ts">
-import Vue from 'vue';
-
-export default Vue.extend({
-	props: {
-		isGoogleOAuthType: {
-			type: Boolean,
-		},
-	},
-	computed: {
-		basePath(): string {
-			return this.$store.getters.getBaseUrl;
-		},
-	},
-});
+defineProps<{
+	isGoogleOAuthType: boolean;
+}>();
+const i18n = useI18n();
 </script>
 
+<template>
+	<div :class="$style.container">
+		<GoogleAuthButton v-if="isGoogleOAuthType" />
+		<n8n-button
+			v-else
+			:label="i18n.baseText('credentialEdit.oAuthButton.connectMyAccount')"
+			size="large"
+		/>
+	</div>
+</template>
+
 <style module lang="scss">
-.googleIcon {
-	width: 191px;
-	cursor: pointer;
+.container {
+	display: inline-block;
 }
 </style>

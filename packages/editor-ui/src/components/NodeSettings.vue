@@ -1,583 +1,1183 @@
-<template>
-	<div class="node-settings" @keydown.stop>
-		<div class="header-side-menu">
-			<span v-if="node">
-				<display-with-change :key-name="'name'" @valueChanged="valueChanged"></display-with-change>
-				<a v-if="nodeType" :href="'http://n8n.io/nodes/' + nodeType.name" target="_blank" class="node-info">
-					<n8n-tooltip class="clickable" placement="top" >
-						<div slot="content" v-html="'<strong>Node Description:</strong><br />' + nodeTypeDescription + '<br /><br /><strong>Click the \'?\' icon to open this node on n8n.io </strong>'"></div>
-						<font-awesome-icon icon="question-circle" />
-					</n8n-tooltip>
-				</a>
-			</span>
-		</div>
-		<div class="node-is-not-valid" v-if="node && !nodeValid">
-			<n8n-text>The node is not valid as its type "{{node.type}}" is unknown.</n8n-text>
-		</div>
-		<div class="node-parameters-wrapper" v-if="node && nodeValid">
-			<el-tabs stretch @tab-click="handleTabClick">
-				<el-tab-pane label="Parameters">
-					<node-credentials :node="node" @credentialSelected="credentialSelected"></node-credentials>
-					<node-webhooks :node="node" :nodeType="nodeType" />
-					<parameter-input-list :parameters="parametersNoneSetting" :hideDelete="true" :nodeValues="nodeValues" path="parameters" @valueChanged="valueChanged" />
-					<div v-if="parametersNoneSetting.length === 0" class="no-parameters">
-						<n8n-text>This node does not have any parameters.</n8n-text>
-					</div>
-				</el-tab-pane>
-				<el-tab-pane label="Settings">
-					<parameter-input-list :parameters="nodeSettings" :hideDelete="true" :nodeValues="nodeValues" path="" @valueChanged="valueChanged" />
-					<parameter-input-list :parameters="parametersSetting" :nodeValues="nodeValues" path="parameters" @valueChanged="valueChanged" />
-				</el-tab-pane>
-			</el-tabs>
-		</div>
-	</div>
-</template>
-
-<script lang="ts">
-import Vue from 'vue';
-import {
+<script setup lang="ts">
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import type {
 	INodeTypeDescription,
 	INodeParameters,
 	INodeProperties,
-	NodeHelpers,
 	NodeParameterValue,
 } from 'n8n-workflow';
 import {
+	NodeHelpers,
+	NodeConnectionType,
+	deepCopy,
+	isINodePropertyCollectionList,
+	isINodePropertiesList,
+	isINodePropertyOptionsList,
+	displayParameter,
+} from 'n8n-workflow';
+import type {
+	CurlToJSONResponse,
 	INodeUi,
 	INodeUpdatePropertiesInformation,
 	IUpdateInformation,
 } from '@/Interface';
 
-import { ElTabPane } from "element-ui/types/tab-pane";
+import { COMMUNITY_NODES_INSTALLATION_DOCS_URL, CUSTOM_NODES_DOCS_URL } from '@/constants';
 
-import DisplayWithChange from '@/components/DisplayWithChange.vue';
-import ParameterInputFull from '@/components/ParameterInputFull.vue';
+import NodeTitle from '@/components/NodeTitle.vue';
 import ParameterInputList from '@/components/ParameterInputList.vue';
 import NodeCredentials from '@/components/NodeCredentials.vue';
+import NodeSettingsTabs from '@/components/NodeSettingsTabs.vue';
 import NodeWebhooks from '@/components/NodeWebhooks.vue';
-import { get, set, unset } from 'lodash';
+import NDVSubConnections from '@/components/NDVSubConnections.vue';
+import { get, set, unset } from 'lodash-es';
 
-import { externalHooks } from '@/components/mixins/externalHooks';
-import { genericHelpers } from '@/components/mixins/genericHelpers';
-import { nodeHelpers } from '@/components/mixins/nodeHelpers';
+import NodeExecuteButton from './NodeExecuteButton.vue';
+import { isCommunityPackageName } from '@/utils/nodeTypesUtils';
+import { useWorkflowsStore } from '@/stores/workflows.store';
+import { useNDVStore } from '@/stores/ndv.store';
+import { useNodeTypesStore } from '@/stores/nodeTypes.store';
+import { useHistoryStore } from '@/stores/history.store';
+import { RenameNodeCommand } from '@/models/history';
+import { useCredentialsStore } from '@/stores/credentials.store';
+import type { EventBus } from 'n8n-design-system';
+import { useExternalHooks } from '@/composables/useExternalHooks';
+import { useNodeHelpers } from '@/composables/useNodeHelpers';
+import { useI18n } from '@/composables/useI18n';
+import { useTelemetry } from '@/composables/useTelemetry';
+import { importCurlEventBus, ndvEventBus } from '@/event-bus';
+import { ProjectTypes } from '@/types/projects.types';
+import { updateDynamicConnections } from '@/utils/nodeSettingsUtils';
+import FreeAiCreditsCallout from '@/components/FreeAiCreditsCallout.vue';
 
-import mixins from 'vue-typed-mixins';
+const props = withDefaults(
+	defineProps<{
+		eventBus: EventBus;
+		dragging: boolean;
+		pushRef: string;
+		nodeType: INodeTypeDescription | null;
+		readOnly: boolean;
+		foreignCredentials: string[];
+		blockUI: boolean;
+		executable: boolean;
+		inputSize: number;
+	}>(),
+	{
+		foreignCredentials: () => [],
+		readOnly: false,
+		executable: true,
+		inputSize: 0,
+		blockUI: false,
+	},
+);
 
-export default mixins(
-	externalHooks,
-	genericHelpers,
-	nodeHelpers,
-)
+const emit = defineEmits<{
+	stopExecution: [];
+	redrawRequired: [];
+	valueChanged: [value: IUpdateInformation];
+	switchSelectedNode: [nodeName: string];
+	openConnectionNodeCreator: [nodeName: string, connectionType: NodeConnectionType];
+	activate: [];
+	execute: [];
+}>();
 
-	.extend({
-		name: 'NodeSettings',
-		components: {
-			DisplayWithChange,
-			NodeCredentials,
-			ParameterInputFull,
-			ParameterInputList,
-			NodeWebhooks,
-		},
-		computed: {
-			nodeType (): INodeTypeDescription | null {
-				if (this.node) {
-					return this.$store.getters.nodeType(this.node.type, this.node.typeVersion);
-				}
+const nodeTypesStore = useNodeTypesStore();
+const ndvStore = useNDVStore();
+const workflowsStore = useWorkflowsStore();
+const credentialsStore = useCredentialsStore();
+const historyStore = useHistoryStore();
 
-				return null;
-			},
-			nodeTypeDescription (): string {
-				if (this.nodeType && this.nodeType.description) {
-					return this.nodeType.description;
-				} else {
-					return 'No description found';
-				}
-			},
-			headerStyle (): object {
-				if (!this.node) {
-					return {};
-				}
+const telemetry = useTelemetry();
+const nodeHelpers = useNodeHelpers();
+const externalHooks = useExternalHooks();
+const i18n = useI18n();
 
-				return {
-					'background-color': this.node.color,
-				};
-			},
-			node (): INodeUi {
-				return this.$store.getters.activeNode;
-			},
-			parametersSetting (): INodeProperties[] {
-				return this.parameters.filter((item) => {
-					return item.isNodeSetting;
-				});
-			},
-			parametersNoneSetting (): INodeProperties[] {
-				return this.parameters.filter((item) => {
-					return !item.isNodeSetting;
-				});
-			},
-			parameters (): INodeProperties[] {
-				if (this.nodeType === null) {
-					return [];
-				}
+const nodeValid = ref(true);
+const openPanel = ref<'params' | 'settings'>('params');
+const nodeValues = ref<INodeParameters>({
+	color: '#ff0000',
+	alwaysOutputData: false,
+	executeOnce: false,
+	notesInFlow: false,
+	onError: 'stopWorkflow',
+	retryOnFail: false,
+	maxTries: 3,
+	waitBetweenTries: 1000,
+	notes: '',
+	parameters: {},
+});
 
-				return this.nodeType.properties;
-			},
-			workflowRunning (): boolean {
-				return this.$store.getters.isActionActive('workflowRunning');
-			},
-		},
-		data () {
-			return {
-				nodeValid: true,
-				nodeColor: null,
-				nodeValues: {
-					color: '#ff0000',
-					alwaysOutputData: false,
-					executeOnce: false,
-					notesInFlow: false,
-					continueOnFail: false,
-					retryOnFail: false,
-					maxTries: 3,
-					waitBetweenTries: 1000,
-					notes: '',
-					parameters: {},
-				} as INodeParameters,
+// Used to prevent nodeValues from being overwritten by defaults on reopening ndv
+const nodeValuesInitialized = ref(false);
 
-				nodeSettings: [
-					{
-						displayName: 'Notes',
-						name: 'notes',
-						type: 'string',
-						typeOptions: {
-							rows: 5,
-						},
-						default: '',
-						noDataExpression: true,
-						description: 'Optional note to save with the node.',
-					},
-					{
-						displayName: 'Display note in flow?',
-						name: 'notesInFlow',
-						type: 'boolean',
-						default: false,
-						noDataExpression: true,
-						description: 'If active, the note above will display in the flow as a subtitle.',
-					},
-					{
-						displayName: 'Always Output Data',
-						name: 'alwaysOutputData',
-						type: 'boolean',
-						default: false,
-						noDataExpression: true,
-						description: 'If active, the node will return an empty item even if the <br />node returns no data during an initial execution. Be careful setting <br />this on IF-Nodes as it could cause an infinite loop.',
-					},
-					{
-						displayName: 'Execute Once',
-						name: 'executeOnce',
-						type: 'boolean',
-						default: false,
-						noDataExpression: true,
-						description: 'If active, the node executes only once, with data<br /> from the first item it recieves. ',
-					},
-					{
-						displayName: 'Retry On Fail',
-						name: 'retryOnFail',
-						type: 'boolean',
-						default: false,
-						noDataExpression: true,
-						description: 'If active, the node tries to execute a failed attempt <br /> multiple times until it succeeds.',
-					},
-					{
-						displayName: 'Max. Tries',
-						name: 'maxTries',
-						type: 'number',
-						typeOptions: {
-							minValue: 2,
-							maxValue: 5,
-						},
-						default: 3,
-						displayOptions: {
-							show: {
-								retryOnFail: [
-									true,
-								],
-							},
-						},
-						noDataExpression: true,
-						description: 'Number of times Retry On Fail should attempt to execute the node <br />before stopping and returning the execution as failed.',
-					},
-					{
-						displayName: 'Wait Between Tries',
-						name: 'waitBetweenTries',
-						type: 'number',
-						typeOptions: {
-							minValue: 0,
-							maxValue: 5000,
-						},
-						default: 1000,
-						displayOptions: {
-							show: {
-								retryOnFail: [
-									true,
-								],
-							},
-						},
-						noDataExpression: true,
-						description: 'How long to wait between each attempt. Value in ms.',
-					},
-					{
-						displayName: 'Continue On Fail',
-						name: 'continueOnFail',
-						type: 'boolean',
-						default: false,
-						noDataExpression: true,
-						description: 'If active, the workflow continues even if this node\'s <br />execution fails. When this occurs, the node passes along input data from<br />previous nodes - so your workflow should account for unexpected output data.',
-					},
-				] as INodeProperties[],
+const hiddenIssuesInputs = ref<string[]>([]);
+const nodeSettings = ref<INodeProperties[]>([]);
+const subConnections = ref<InstanceType<typeof NDVSubConnections> | null>(null);
 
-			};
-		},
-		watch: {
-			node (newNode, oldNode) {
-				this.setNodeValues();
-			},
-		},
-		methods: {
-			noOp () {},
-			setValue (name: string, value: NodeParameterValue) {
-				const nameParts = name.split('.');
-				let lastNamePart: string | undefined = nameParts.pop();
+const currentWorkflowInstance = computed(() => workflowsStore.getCurrentWorkflow());
+const currentWorkflow = computed(() =>
+	workflowsStore.getWorkflowById(currentWorkflowInstance.value.id),
+);
+const hasForeignCredential = computed(() => props.foreignCredentials.length > 0);
+const isHomeProjectTeam = computed(
+	() => currentWorkflow.value?.homeProject?.type === ProjectTypes.Team,
+);
+const isReadOnly = computed(
+	() => props.readOnly || (hasForeignCredential.value && !isHomeProjectTeam.value),
+);
+const node = computed(() => ndvStore.activeNode);
 
-				let isArray = false;
-				if (lastNamePart !== undefined && lastNamePart.includes('[')) {
-					// It incldues an index so we have to extract it
-					const lastNameParts = lastNamePart.match(/(.*)\[(\d+)\]$/);
-					if (lastNameParts) {
-						nameParts.push(lastNameParts[1]);
-						lastNamePart = lastNameParts[2];
-						isArray = true;
-					}
-				}
+const isTriggerNode = computed(() => !!node.value && nodeTypesStore.isTriggerNode(node.value.type));
 
-				// Set the value via Vue.set that everything updates correctly in the UI
-				if (nameParts.length === 0) {
-					// Data is on top level
-					if (value === null) {
-						// Property should be deleted
-						// @ts-ignore
-						Vue.delete(this.nodeValues, lastNamePart);
-					} else {
-						// Value should be set
-						// @ts-ignore
-						Vue.set(this.nodeValues, lastNamePart, value);
-					}
-				} else {
-					// Data is on lower level
-					if (value === null) {
-						// Property should be deleted
-						// @ts-ignore
-						let tempValue = get(this.nodeValues, nameParts.join('.')) as INodeParameters | NodeParameters[];
-						Vue.delete(tempValue as object, lastNamePart as string);
+const isExecutable = computed(() => {
+	if (props.nodeType && node.value) {
+		const workflowNode = currentWorkflowInstance.value.getNode(node.value.name);
+		const inputs = NodeHelpers.getNodeInputs(
+			currentWorkflowInstance.value,
+			workflowNode!,
+			props.nodeType,
+		);
+		const inputNames = NodeHelpers.getConnectionTypes(inputs);
 
-						if (isArray === true && (tempValue as INodeParameters[]).length === 0) {
-							// If a value from an array got delete and no values are left
-							// delete also the parent
-							lastNamePart = nameParts.pop();
-							tempValue = get(this.nodeValues, nameParts.join('.')) as INodeParameters;
-							Vue.delete(tempValue as object, lastNamePart as string);
-						}
-					} else {
-						// Value should be set
-						if (typeof value === 'object') {
-							// @ts-ignore
-							Vue.set(get(this.nodeValues, nameParts.join('.')), lastNamePart, JSON.parse(JSON.stringify(value)));
-						} else {
-							// @ts-ignore
-							Vue.set(get(this.nodeValues, nameParts.join('.')), lastNamePart, value);
-						}
-					}
-				}
-			},
-			credentialSelected (updateInformation: INodeUpdatePropertiesInformation) {
-				// Update the values on the node
-				this.$store.commit('updateNodeProperties', updateInformation);
+		if (!inputNames.includes(NodeConnectionType.Main) && !isTriggerNode.value) {
+			return false;
+		}
+	}
 
-				const node = this.$store.getters.getNodeByName(updateInformation.name);
+	return props.executable || props.foreignCredentials.length > 0;
+});
 
-				// Update the issues
-				this.updateNodeCredentialIssues(node);
+const nodeTypeVersions = computed(() => {
+	if (!node.value) return [];
+	return nodeTypesStore.getNodeVersions(node.value.type);
+});
 
-				this.$externalHooks().run('nodeSettings.credentialSelected', { updateInformation });
-			},
-			valueChanged (parameterData: IUpdateInformation) {
-				let newValue: NodeParameterValue;
-				if (parameterData.hasOwnProperty('value')) {
-					// New value is given
-					newValue = parameterData.value;
-				} else {
-					// Get new value from nodeData where it is set already
-					newValue = get(this.nodeValues, parameterData.name) as NodeParameterValue;
-				}
+const latestVersion = computed(() => Math.max(...nodeTypeVersions.value));
 
-				// Save the node name before we commit the change because
-				// we need the old name to rename the node properly
-				const nodeNameBefore = parameterData.node || this.node.name;
-				const node = this.$store.getters.getNodeByName(nodeNameBefore);
-				if (parameterData.name === 'name') {
-					// Name of node changed so we have to set also the new node name as active
+const isLatestNodeVersion = computed(
+	() => !node.value?.typeVersion || latestVersion.value === node.value.typeVersion,
+);
 
-					// Update happens in NodeView so emit event
-					const sendData = {
-						value: newValue,
-						oldValue: nodeNameBefore,
-						name: parameterData.name,
-					};
-					this.$emit('valueChanged', sendData);
+const executeButtonTooltip = computed(() => {
+	if (
+		node.value &&
+		isLatestNodeVersion.value &&
+		props.inputSize > 1 &&
+		!nodeHelpers.isSingleExecution(node.value.type, node.value.parameters)
+	) {
+		return i18n.baseText('nodeSettings.executeButtonTooltip.times', {
+			interpolate: { inputSize: props.inputSize },
+		});
+	}
+	return '';
+});
 
-					this.$store.commit('setActiveNode', newValue);
-				} else if (parameterData.name.startsWith('parameters.')) {
-					// A node parameter changed
+const nodeVersionTag = computed(() => {
+	if (!props.nodeType || props.nodeType.hidden) {
+		return i18n.baseText('nodeSettings.deprecated');
+	}
 
-					const nodeType = this.$store.getters.nodeType(node.type) as INodeTypeDescription | null;
-					if (!nodeType) {
-						return;
-					}
+	if (isLatestNodeVersion.value) {
+		return i18n.baseText('nodeSettings.latest');
+	}
 
-					// Get only the parameters which are different to the defaults
-					let nodeParameters = NodeHelpers.getNodeParameters(nodeType.properties, node.parameters, false, false);
-					const oldNodeParameters = Object.assign({}, nodeParameters);
-
-					// Copy the data because it is the data of vuex so make sure that
-					// we do not edit it directly
-					nodeParameters = JSON.parse(JSON.stringify(nodeParameters));
-
-					// Remove the 'parameters.' from the beginning to just have the
-					// actual parameter name
-					const parameterPath = parameterData.name.split('.').slice(1).join('.');
-
-					// Check if the path is supposed to change an array and if so get
-					// the needed data like path and index
-					const parameterPathArray = parameterPath.match(/(.*)\[(\d+)\]$/);
-
-					// Apply the new value
-					if (parameterData.value === undefined && parameterPathArray !== null) {
-						// Delete array item
-						const path = parameterPathArray[1];
-						const index = parameterPathArray[2];
-						const data = get(nodeParameters, path);
-
-						if (Array.isArray(data)) {
-							data.splice(parseInt(index, 10), 1);
-							Vue.set(nodeParameters as object, path, data);
-						}
-					} else {
-						if (newValue === undefined) {
-							unset(nodeParameters as object, parameterPath);
-						} else {
-							set(nodeParameters as object, parameterPath, newValue);
-						}
-					}
-
-					// Get the parameters with the now new defaults according to the
-					// from the user actually defined parameters
-					nodeParameters = NodeHelpers.getNodeParameters(nodeType.properties, nodeParameters as INodeParameters, true, false);
-
-					for (const key of Object.keys(nodeParameters as object)) {
-						if (nodeParameters && nodeParameters[key] !== null && nodeParameters[key] !== undefined) {
-							this.setValue(`parameters.${key}`, nodeParameters[key] as string);
-						}
-					}
-
-					// Update the data in vuex
-					const updateInformation = {
-						name: node.name,
-						value: nodeParameters,
-					};
-
-					this.$store.commit('setNodeParameters', updateInformation);
-
-					this.$externalHooks().run('nodeSettings.valueChanged', { parameterPath, newValue, parameters: this.parameters, oldNodeParameters });
-
-					this.updateNodeParameterIssues(node, nodeType);
-					this.updateNodeCredentialIssues(node);
-				} else {
-					// A property on the node itself changed
-
-					// Update data in settings
-					Vue.set(this.nodeValues, parameterData.name, newValue);
-
-					// Update data in vuex
-					const updateInformation = {
-						name: node.name,
-						key: parameterData.name,
-						value: newValue,
-					};
-					this.$store.commit('setNodeValue', updateInformation);
-				}
-			},
-			/**
-			 * Sets the values of the active node in the internal settings variables
-			 */
-			setNodeValues () {
-				if (!this.node) {
-					// No node selected
-					return;
-				}
-
-				if (this.nodeType !== null) {
-					this.nodeValid = true;
-
-					const foundNodeSettings = [];
-					if (this.node.color) {
-						foundNodeSettings.push('color');
-						Vue.set(this.nodeValues, 'color', this.node.color);
-					}
-
-					if (this.node.notes) {
-						foundNodeSettings.push('notes');
-						Vue.set(this.nodeValues, 'notes', this.node.notes);
-					}
-
-					if (this.node.alwaysOutputData) {
-						foundNodeSettings.push('alwaysOutputData');
-						Vue.set(this.nodeValues, 'alwaysOutputData', this.node.alwaysOutputData);
-					}
-
-					if (this.node.executeOnce) {
-						foundNodeSettings.push('executeOnce');
-						Vue.set(this.nodeValues, 'executeOnce', this.node.executeOnce);
-					}
-
-					if (this.node.continueOnFail) {
-						foundNodeSettings.push('continueOnFail');
-						Vue.set(this.nodeValues, 'continueOnFail', this.node.continueOnFail);
-					}
-
-					if (this.node.notesInFlow) {
-						foundNodeSettings.push('notesInFlow');
-						Vue.set(this.nodeValues, 'notesInFlow', this.node.notesInFlow);
-					}
-
-					if (this.node.retryOnFail) {
-						foundNodeSettings.push('retryOnFail');
-						Vue.set(this.nodeValues, 'retryOnFail', this.node.retryOnFail);
-					}
-
-					if (this.node.maxTries) {
-						foundNodeSettings.push('maxTries');
-						Vue.set(this.nodeValues, 'maxTries', this.node.maxTries);
-					}
-
-					if (this.node.waitBetweenTries) {
-						foundNodeSettings.push('waitBetweenTries');
-						Vue.set(this.nodeValues, 'waitBetweenTries', this.node.waitBetweenTries);
-					}
-
-					// Set default node settings
-					for (const nodeSetting of this.nodeSettings) {
-						if (!foundNodeSettings.includes(nodeSetting.name)) {
-							// Set default value
-							Vue.set(this.nodeValues, nodeSetting.name, nodeSetting.default);
-						}
-					}
-
-					Vue.set(this.nodeValues, 'parameters', JSON.parse(JSON.stringify(this.node.parameters)));
-				} else {
-					this.nodeValid = false;
-				}
-			},
-			handleTabClick(tab: ElTabPane) {
-				if(tab.label === 'Settings') {
-					this.$telemetry.track('User viewed node settings', { node_type: this.node ? this.node.type : '', workflow_id: this.$store.getters.workflowId });
-				}
-			},
-		},
-		mounted () {
-			this.setNodeValues();
-		},
+	return i18n.baseText('nodeSettings.latestVersion', {
+		interpolate: { version: latestVersion.value.toString() },
 	});
+});
+
+const parameters = computed(() => {
+	if (props.nodeType === null) {
+		return [];
+	}
+
+	return props.nodeType?.properties ?? [];
+});
+
+const parametersSetting = computed(() => parameters.value.filter((item) => item.isNodeSetting));
+
+const parametersNoneSetting = computed(() =>
+	parameters.value.filter((item) => !item.isNodeSetting),
+);
+
+const outputPanelEditMode = computed(() => ndvStore.outputPanelEditMode);
+
+const isCommunityNode = computed(() => !!node.value && isCommunityPackageName(node.value.type));
+
+const usedCredentials = computed(() =>
+	Object.values(workflowsStore.usedCredentials).filter((credential) =>
+		Object.values(node.value?.credentials || []).find(
+			(nodeCredential) => nodeCredential.id === credential.id,
+		),
+	),
+);
+
+const credentialOwnerName = computed(() => {
+	const credential = usedCredentials.value
+		? Object.values(usedCredentials.value).find(
+				(credential) => credential.id === props.foreignCredentials[0],
+			)
+		: undefined;
+
+	return credentialsStore.getCredentialOwnerName(credential);
+});
+
+const setValue = (name: string, value: NodeParameterValue) => {
+	const nameParts = name.split('.');
+	let lastNamePart: string | undefined = nameParts.pop();
+
+	let isArray = false;
+	if (lastNamePart !== undefined && lastNamePart.includes('[')) {
+		// It includes an index so we have to extract it
+		const lastNameParts = lastNamePart.match(/(.*)\[(\d+)\]$/);
+		if (lastNameParts) {
+			nameParts.push(lastNameParts[1]);
+			lastNamePart = lastNameParts[2];
+			isArray = true;
+		}
+	}
+
+	// Set the value so that everything updates correctly in the UI
+	if (nameParts.length === 0) {
+		// Data is on top level
+		if (value === null) {
+			// Property should be deleted
+			if (lastNamePart) {
+				const { [lastNamePart]: removedNodeValue, ...remainingNodeValues } = nodeValues.value;
+				nodeValues.value = remainingNodeValues;
+			}
+		} else {
+			// Value should be set
+			nodeValues.value = {
+				...nodeValues.value,
+				[lastNamePart as string]: value,
+			};
+		}
+	} else {
+		// Data is on lower level
+		if (value === null) {
+			// Property should be deleted
+			let tempValue = get(nodeValues.value, nameParts.join('.')) as
+				| INodeParameters
+				| INodeParameters[];
+
+			if (lastNamePart && !Array.isArray(tempValue)) {
+				const { [lastNamePart]: removedNodeValue, ...remainingNodeValues } = tempValue;
+				tempValue = remainingNodeValues;
+			}
+
+			if (isArray && Array.isArray(tempValue) && tempValue.length === 0) {
+				// If a value from an array got delete and no values are left
+				// delete also the parent
+				lastNamePart = nameParts.pop();
+				tempValue = get(nodeValues.value, nameParts.join('.')) as INodeParameters;
+				if (lastNamePart) {
+					const { [lastNamePart]: removedArrayNodeValue, ...remainingArrayNodeValues } = tempValue;
+					tempValue = remainingArrayNodeValues;
+				}
+			}
+		} else {
+			// Value should be set
+			if (typeof value === 'object') {
+				set(
+					get(nodeValues.value, nameParts.join('.')) as Record<string, unknown>,
+					lastNamePart as string,
+					deepCopy(value),
+				);
+			} else {
+				set(
+					get(nodeValues.value, nameParts.join('.')) as Record<string, unknown>,
+					lastNamePart as string,
+					value,
+				);
+			}
+		}
+	}
+
+	nodeValues.value = { ...nodeValues.value };
+};
+
+/**
+ * Removes node values that are not valid options for the given parameter.
+ * This can happen when there are multiple node parameters with the same name
+ * but different options and display conditions
+ * @param nodeType The node type description
+ * @param nodeParameterValues Current node parameter values
+ * @param updatedParameter The parameter that was updated. Will be used to determine which parameters to remove based on their display conditions and option values
+ */
+const removeMismatchedOptionValues = (
+	nodeType: INodeTypeDescription,
+	nodeParameterValues: INodeParameters | null,
+	updatedParameter: { name: string; value: NodeParameterValue },
+) => {
+	nodeType.properties.forEach((prop) => {
+		const displayOptions = prop.displayOptions;
+		// Not processing parameters that are not set or don't have options
+		if (!nodeParameterValues?.hasOwnProperty(prop.name) || !displayOptions || !prop.options) {
+			return;
+		}
+		// Only process the parameters that depend on the updated parameter
+		const showCondition = displayOptions.show?.[updatedParameter.name];
+		const hideCondition = displayOptions.hide?.[updatedParameter.name];
+		if (showCondition === undefined && hideCondition === undefined) {
+			return;
+		}
+
+		let hasValidOptions = true;
+
+		// Every value should be a possible option
+		if (isINodePropertyCollectionList(prop.options) || isINodePropertiesList(prop.options)) {
+			hasValidOptions = Object.keys(nodeParameterValues).every(
+				(key) => (prop.options ?? []).find((option) => option.name === key) !== undefined,
+			);
+		} else if (isINodePropertyOptionsList(prop.options)) {
+			hasValidOptions = !!prop.options.find(
+				(option) => option.value === nodeParameterValues[prop.name],
+			);
+		}
+
+		if (!hasValidOptions && displayParameter(nodeParameterValues, prop, node.value)) {
+			unset(nodeParameterValues as object, prop.name);
+		}
+	});
+};
+
+const valueChanged = (parameterData: IUpdateInformation) => {
+	let newValue: NodeParameterValue;
+
+	if (parameterData.hasOwnProperty('value')) {
+		// New value is given
+		newValue = parameterData.value as string | number;
+	} else {
+		// Get new value from nodeData where it is set already
+		newValue = get(nodeValues.value, parameterData.name) as NodeParameterValue;
+	}
+	// Save the node name before we commit the change because
+	// we need the old name to rename the node properly
+	const nodeNameBefore = parameterData.node || node.value?.name;
+
+	if (!nodeNameBefore) {
+		return;
+	}
+
+	const _node = workflowsStore.getNodeByName(nodeNameBefore);
+
+	if (_node === null) {
+		return;
+	}
+
+	if (parameterData.name === 'onError') {
+		// If that parameter changes, we need to redraw the connections, as the error output may need to be added or removed
+		emit('redrawRequired');
+	}
+
+	if (parameterData.name === 'name') {
+		// Name of node changed so we have to set also the new node name as active
+
+		// Update happens in NodeView so emit event
+		const sendData = {
+			value: newValue,
+			oldValue: nodeNameBefore,
+			name: parameterData.name,
+		};
+		emit('valueChanged', sendData);
+	} else if (parameterData.name === 'parameters') {
+		const nodeType = nodeTypesStore.getNodeType(_node.type, _node.typeVersion);
+		if (!nodeType) {
+			return;
+		}
+
+		// Get only the parameters which are different to the defaults
+		let nodeParameters = NodeHelpers.getNodeParameters(
+			nodeType.properties,
+			_node.parameters,
+			false,
+			false,
+			_node,
+		);
+
+		const oldNodeParameters = Object.assign({}, nodeParameters);
+
+		// Copy the data because it is the data of vuex so make sure that
+		// we do not edit it directly
+		nodeParameters = deepCopy(nodeParameters);
+
+		if (parameterData.value && typeof parameterData.value === 'object') {
+			for (const parameterName of Object.keys(parameterData.value)) {
+				//@ts-ignore
+				newValue = parameterData.value[parameterName];
+
+				// Remove the 'parameters.' from the beginning to just have the
+				// actual parameter name
+				const parameterPath = parameterName.split('.').slice(1).join('.');
+
+				// Check if the path is supposed to change an array and if so get
+				// the needed data like path and index
+				const parameterPathArray = parameterPath.match(/(.*)\[(\d+)\]$/);
+
+				// Apply the new value
+				//@ts-ignore
+				if (parameterData[parameterName] === undefined && parameterPathArray !== null) {
+					// Delete array item
+					const path = parameterPathArray[1];
+					const index = parameterPathArray[2];
+					const data = get(nodeParameters, path);
+
+					if (Array.isArray(data)) {
+						data.splice(parseInt(index, 10), 1);
+						set(nodeParameters as object, path, data);
+					}
+				} else {
+					if (newValue === undefined) {
+						unset(nodeParameters as object, parameterPath);
+					} else {
+						set(nodeParameters as object, parameterPath, newValue);
+					}
+				}
+
+				void externalHooks.run('nodeSettings.valueChanged', {
+					parameterPath,
+					newValue,
+					parameters: parameters.value,
+					oldNodeParameters,
+				});
+			}
+		}
+
+		// Get the parameters with the now new defaults according to the
+		// from the user actually defined parameters
+		nodeParameters = NodeHelpers.getNodeParameters(
+			nodeType.properties,
+			nodeParameters as INodeParameters,
+			true,
+			false,
+			_node,
+		);
+
+		for (const key of Object.keys(nodeParameters as object)) {
+			if (nodeParameters && nodeParameters[key] !== null && nodeParameters[key] !== undefined) {
+				setValue(`parameters.${key}`, nodeParameters[key] as string);
+			}
+		}
+
+		if (nodeParameters) {
+			const updateInformation: IUpdateInformation = {
+				name: _node.name,
+				value: nodeParameters,
+			};
+
+			workflowsStore.setNodeParameters(updateInformation);
+
+			nodeHelpers.updateNodeParameterIssuesByName(_node.name);
+			nodeHelpers.updateNodeCredentialIssuesByName(_node.name);
+		}
+	} else if (parameterData.name.startsWith('parameters.')) {
+		// A node parameter changed
+
+		const nodeType = nodeTypesStore.getNodeType(_node.type, _node.typeVersion);
+		if (!nodeType) {
+			return;
+		}
+
+		// Get only the parameters which are different to the defaults
+		let nodeParameters = NodeHelpers.getNodeParameters(
+			nodeType.properties,
+			_node.parameters,
+			false,
+			false,
+			_node,
+		);
+		const oldNodeParameters = Object.assign({}, nodeParameters);
+
+		// Copy the data because it is the data of vuex so make sure that
+		// we do not edit it directly
+		nodeParameters = deepCopy(nodeParameters);
+
+		// Remove the 'parameters.' from the beginning to just have the
+		// actual parameter name
+		const parameterPath = parameterData.name.split('.').slice(1).join('.');
+
+		// Check if the path is supposed to change an array and if so get
+		// the needed data like path and index
+		const parameterPathArray = parameterPath.match(/(.*)\[(\d+)\]$/);
+
+		// Apply the new value
+		if (parameterData.value === undefined && parameterPathArray !== null) {
+			// Delete array item
+			const path = parameterPathArray[1];
+			const index = parameterPathArray[2];
+			const data = get(nodeParameters, path);
+
+			if (Array.isArray(data)) {
+				data.splice(parseInt(index, 10), 1);
+				set(nodeParameters as object, path, data);
+			}
+		} else {
+			if (newValue === undefined) {
+				unset(nodeParameters as object, parameterPath);
+			} else {
+				set(nodeParameters as object, parameterPath, newValue);
+			}
+			// If value is updated, remove parameter values that have invalid options
+			// so getNodeParameters checks don't fail
+			removeMismatchedOptionValues(nodeType, nodeParameters, {
+				name: parameterPath,
+				value: newValue,
+			});
+		}
+
+		// Get the parameters with the now new defaults according to the
+		// from the user actually defined parameters
+		nodeParameters = NodeHelpers.getNodeParameters(
+			nodeType.properties,
+			nodeParameters as INodeParameters,
+			true,
+			false,
+			_node,
+		);
+
+		for (const key of Object.keys(nodeParameters as object)) {
+			if (nodeParameters && nodeParameters[key] !== null && nodeParameters[key] !== undefined) {
+				setValue(`parameters.${key}`, nodeParameters[key] as string);
+			}
+		}
+
+		// Update the data in vuex
+		const updateInformation: IUpdateInformation = {
+			name: _node.name,
+			value: nodeParameters,
+		};
+
+		const connections = workflowsStore.allConnections;
+
+		const updatedConnections = updateDynamicConnections(_node, connections, parameterData);
+
+		if (updatedConnections) {
+			workflowsStore.setConnections(updatedConnections, true);
+		}
+
+		workflowsStore.setNodeParameters(updateInformation);
+
+		void externalHooks.run('nodeSettings.valueChanged', {
+			parameterPath,
+			newValue,
+			parameters: parameters.value,
+			oldNodeParameters,
+		});
+
+		nodeHelpers.updateNodeParameterIssuesByName(_node.name);
+		nodeHelpers.updateNodeCredentialIssuesByName(_node.name);
+		telemetry.trackNodeParametersValuesChange(nodeType.name, parameterData);
+	} else {
+		// A property on the node itself changed
+
+		// Update data in settings
+		nodeValues.value = {
+			...nodeValues.value,
+			[parameterData.name]: newValue,
+		};
+
+		// Update data in vuex
+		const updateInformation = {
+			name: _node.name,
+			key: parameterData.name,
+			value: newValue,
+		};
+
+		workflowsStore.setNodeValue(updateInformation);
+	}
+};
+
+const setHttpNodeParameters = (parameters: CurlToJSONResponse) => {
+	try {
+		valueChanged({
+			node: node.value?.name,
+			name: 'parameters',
+			value: parameters as unknown as INodeParameters,
+		});
+	} catch {}
+};
+
+const onSwitchSelectedNode = (node: string) => {
+	emit('switchSelectedNode', node);
+};
+
+const onOpenConnectionNodeCreator = (nodeName: string, connectionType: NodeConnectionType) => {
+	emit('openConnectionNodeCreator', nodeName, connectionType);
+};
+
+const populateHiddenIssuesSet = () => {
+	if (!node.value || !workflowsStore.isNodePristine(node.value.name)) return;
+	hiddenIssuesInputs.value.push('credentials');
+	parametersNoneSetting.value.forEach((parameter) => {
+		hiddenIssuesInputs.value.push(parameter.name);
+	});
+	workflowsStore.setNodePristine(node.value.name, false);
+};
+
+const populateSettings = () => {
+	if (isExecutable.value && !isTriggerNode.value) {
+		nodeSettings.value.push(
+			...([
+				{
+					displayName: i18n.baseText('nodeSettings.alwaysOutputData.displayName'),
+					name: 'alwaysOutputData',
+					type: 'boolean',
+					default: false,
+					noDataExpression: true,
+					description: i18n.baseText('nodeSettings.alwaysOutputData.description'),
+				},
+				{
+					displayName: i18n.baseText('nodeSettings.executeOnce.displayName'),
+					name: 'executeOnce',
+					type: 'boolean',
+					default: false,
+					noDataExpression: true,
+					description: i18n.baseText('nodeSettings.executeOnce.description'),
+				},
+				{
+					displayName: i18n.baseText('nodeSettings.retryOnFail.displayName'),
+					name: 'retryOnFail',
+					type: 'boolean',
+					default: false,
+					noDataExpression: true,
+					description: i18n.baseText('nodeSettings.retryOnFail.description'),
+				},
+				{
+					displayName: i18n.baseText('nodeSettings.maxTries.displayName'),
+					name: 'maxTries',
+					type: 'number',
+					typeOptions: {
+						minValue: 2,
+						maxValue: 5,
+					},
+					default: 3,
+					displayOptions: {
+						show: {
+							retryOnFail: [true],
+						},
+					},
+					noDataExpression: true,
+					description: i18n.baseText('nodeSettings.maxTries.description'),
+				},
+				{
+					displayName: i18n.baseText('nodeSettings.waitBetweenTries.displayName'),
+					name: 'waitBetweenTries',
+					type: 'number',
+					typeOptions: {
+						minValue: 0,
+						maxValue: 5000,
+					},
+					default: 1000,
+					displayOptions: {
+						show: {
+							retryOnFail: [true],
+						},
+					},
+					noDataExpression: true,
+					description: i18n.baseText('nodeSettings.waitBetweenTries.description'),
+				},
+				{
+					displayName: i18n.baseText('nodeSettings.onError.displayName'),
+					name: 'onError',
+					type: 'options',
+					options: [
+						{
+							name: i18n.baseText('nodeSettings.onError.options.stopWorkflow.displayName'),
+							value: 'stopWorkflow',
+							description: i18n.baseText('nodeSettings.onError.options.stopWorkflow.description'),
+						},
+						{
+							name: i18n.baseText('nodeSettings.onError.options.continueRegularOutput.displayName'),
+							value: 'continueRegularOutput',
+							description: i18n.baseText(
+								'nodeSettings.onError.options.continueRegularOutput.description',
+							),
+						},
+						{
+							name: i18n.baseText('nodeSettings.onError.options.continueErrorOutput.displayName'),
+							value: 'continueErrorOutput',
+							description: i18n.baseText(
+								'nodeSettings.onError.options.continueErrorOutput.description',
+							),
+						},
+					],
+					default: 'stopWorkflow',
+					description: i18n.baseText('nodeSettings.onError.description'),
+					noDataExpression: true,
+				},
+			] as INodeProperties[]),
+		);
+	}
+	nodeSettings.value.push(
+		...([
+			{
+				displayName: i18n.baseText('nodeSettings.notes.displayName'),
+				name: 'notes',
+				type: 'string',
+				typeOptions: {
+					rows: 5,
+				},
+				default: '',
+				noDataExpression: true,
+				description: i18n.baseText('nodeSettings.notes.description'),
+			},
+			{
+				displayName: i18n.baseText('nodeSettings.notesInFlow.displayName'),
+				name: 'notesInFlow',
+				type: 'boolean',
+				default: false,
+				noDataExpression: true,
+				description: i18n.baseText('nodeSettings.notesInFlow.description'),
+			},
+		] as INodeProperties[]),
+	);
+};
+
+const onParameterBlur = (parameterName: string) => {
+	hiddenIssuesInputs.value = hiddenIssuesInputs.value.filter((name) => name !== parameterName);
+};
+
+const onWorkflowActivate = () => {
+	hiddenIssuesInputs.value = [];
+	emit('activate');
+};
+
+const onNodeExecute = () => {
+	hiddenIssuesInputs.value = [];
+	subConnections.value?.showNodeInputsIssues();
+	emit('execute');
+};
+
+const credentialSelected = (updateInformation: INodeUpdatePropertiesInformation) => {
+	// Update the values on the node
+	workflowsStore.updateNodeProperties(updateInformation);
+
+	const node = workflowsStore.getNodeByName(updateInformation.name);
+
+	if (node) {
+		// Update the issues
+		nodeHelpers.updateNodeCredentialIssues(node);
+	}
+
+	void externalHooks.run('nodeSettings.credentialSelected', { updateInformation });
+};
+
+const nameChanged = (name: string) => {
+	if (node.value) {
+		historyStore.pushCommandToUndo(new RenameNodeCommand(node.value.name, name));
+	}
+	valueChanged({
+		value: name,
+		name: 'name',
+	});
+};
+
+const setNodeValues = () => {
+	// No node selected
+	if (!node.value) {
+		nodeValuesInitialized.value = true;
+		return;
+	}
+
+	if (props.nodeType !== null) {
+		nodeValid.value = true;
+
+		const foundNodeSettings = [];
+		if (node.value.color) {
+			foundNodeSettings.push('color');
+			nodeValues.value = {
+				...nodeValues.value,
+				color: node.value.color,
+			};
+		}
+
+		if (node.value.notes) {
+			foundNodeSettings.push('notes');
+			nodeValues.value = {
+				...nodeValues.value,
+				notes: node.value.notes,
+			};
+		}
+
+		if (node.value.alwaysOutputData) {
+			foundNodeSettings.push('alwaysOutputData');
+			nodeValues.value = {
+				...nodeValues.value,
+				alwaysOutputData: node.value.alwaysOutputData,
+			};
+		}
+
+		if (node.value.executeOnce) {
+			foundNodeSettings.push('executeOnce');
+			nodeValues.value = {
+				...nodeValues.value,
+				executeOnce: node.value.executeOnce,
+			};
+		}
+
+		if (node.value.continueOnFail) {
+			foundNodeSettings.push('onError');
+			nodeValues.value = {
+				...nodeValues.value,
+				onError: 'continueRegularOutput',
+			};
+		}
+
+		if (node.value.onError) {
+			foundNodeSettings.push('onError');
+			nodeValues.value = {
+				...nodeValues.value,
+				onError: node.value.onError,
+			};
+		}
+
+		if (node.value.notesInFlow) {
+			foundNodeSettings.push('notesInFlow');
+			nodeValues.value = {
+				...nodeValues.value,
+				notesInFlow: node.value.notesInFlow,
+			};
+		}
+
+		if (node.value.retryOnFail) {
+			foundNodeSettings.push('retryOnFail');
+			nodeValues.value = {
+				...nodeValues.value,
+				retryOnFail: node.value.retryOnFail,
+			};
+		}
+
+		if (node.value.maxTries) {
+			foundNodeSettings.push('maxTries');
+			nodeValues.value = {
+				...nodeValues.value,
+				maxTries: node.value.maxTries,
+			};
+		}
+
+		if (node.value.waitBetweenTries) {
+			foundNodeSettings.push('waitBetweenTries');
+			nodeValues.value = {
+				...nodeValues.value,
+				waitBetweenTries: node.value.waitBetweenTries,
+			};
+		}
+
+		// Set default node settings
+		for (const nodeSetting of nodeSettings.value) {
+			if (!foundNodeSettings.includes(nodeSetting.name)) {
+				// Set default value
+				nodeValues.value = {
+					...nodeValues.value,
+					[nodeSetting.name]: nodeSetting.default,
+				};
+			}
+		}
+
+		nodeValues.value = {
+			...nodeValues.value,
+			parameters: deepCopy(node.value.parameters),
+		};
+	} else {
+		nodeValid.value = false;
+	}
+
+	nodeValuesInitialized.value = true;
+};
+
+const onMissingNodeTextClick = (event: MouseEvent) => {
+	if ((event.target as Element).localName === 'a') {
+		telemetry.track('user clicked cnr browse button', {
+			source: 'cnr missing node modal',
+		});
+	}
+};
+
+const onMissingNodeLearnMoreLinkClick = () => {
+	telemetry.track('user clicked cnr docs link', {
+		source: 'missing node modal source',
+		package_name: node.value?.type.split('.')[0],
+		node_type: node.value?.type,
+	});
+};
+
+const onStopExecution = () => {
+	emit('stopExecution');
+};
+
+const openSettings = () => {
+	openPanel.value = 'settings';
+};
+
+const onTabSelect = (tab: 'params' | 'settings') => {
+	openPanel.value = tab;
+};
+
+watch(node, () => {
+	setNodeValues();
+});
+
+onMounted(() => {
+	populateHiddenIssuesSet();
+	populateSettings();
+	setNodeValues();
+	props.eventBus?.on('openSettings', openSettings);
+	nodeHelpers.updateNodeParameterIssues(node.value as INodeUi, props.nodeType);
+	importCurlEventBus.on('setHttpNodeParameters', setHttpNodeParameters);
+	ndvEventBus.on('updateParameterValue', valueChanged);
+});
+
+onBeforeUnmount(() => {
+	props.eventBus?.off('openSettings', openSettings);
+	importCurlEventBus.off('setHttpNodeParameters', setHttpNodeParameters);
+	ndvEventBus.off('updateParameterValue', valueChanged);
+});
 </script>
 
-<style lang="scss">
+<template>
+	<div
+		:class="{
+			'node-settings': true,
+			dragging: dragging,
+		}"
+		@keydown.stop
+	>
+		<div :class="$style.header">
+			<div class="header-side-menu">
+				<NodeTitle
+					v-if="node"
+					class="node-name"
+					:model-value="node.name"
+					:node-type="nodeType"
+					:read-only="isReadOnly"
+					@update:model-value="nameChanged"
+				></NodeTitle>
+				<div v-if="isExecutable">
+					<NodeExecuteButton
+						v-if="!blockUI && node && nodeValid"
+						data-test-id="node-execute-button"
+						:node-name="node.name"
+						:disabled="outputPanelEditMode.enabled && !isTriggerNode"
+						:tooltip="executeButtonTooltip"
+						size="small"
+						telemetry-source="parameters"
+						@execute="onNodeExecute"
+						@stop-execution="onStopExecution"
+						@value-changed="valueChanged"
+					/>
+				</div>
+			</div>
+			<NodeSettingsTabs
+				v-if="node && nodeValid"
+				:model-value="openPanel"
+				:node-type="nodeType"
+				:push-ref="pushRef"
+				@update:model-value="onTabSelect"
+			/>
+		</div>
+		<div v-if="node && !nodeValid" class="node-is-not-valid">
+			<p :class="$style.warningIcon">
+				<font-awesome-icon icon="exclamation-triangle" />
+			</p>
+			<div class="missingNodeTitleContainer mt-s mb-xs">
+				<n8n-text size="large" color="text-dark" bold>
+					{{ i18n.baseText('nodeSettings.communityNodeUnknown.title') }}
+				</n8n-text>
+			</div>
+			<div v-if="isCommunityNode" :class="$style.descriptionContainer">
+				<div class="mb-l">
+					<i18n-t
+						keypath="nodeSettings.communityNodeUnknown.description"
+						tag="span"
+						@click="onMissingNodeTextClick"
+					>
+						<template #action>
+							<a
+								:href="`https://www.npmjs.com/package/${node.type.split('.')[0]}`"
+								target="_blank"
+								>{{ node.type.split('.')[0] }}</a
+							>
+						</template>
+					</i18n-t>
+				</div>
+				<n8n-link
+					:to="COMMUNITY_NODES_INSTALLATION_DOCS_URL"
+					@click="onMissingNodeLearnMoreLinkClick"
+				>
+					{{ i18n.baseText('nodeSettings.communityNodeUnknown.installLink.text') }}
+				</n8n-link>
+			</div>
+			<i18n-t v-else keypath="nodeSettings.nodeTypeUnknown.description" tag="span">
+				<template #action>
+					<a
+						:href="CUSTOM_NODES_DOCS_URL"
+						target="_blank"
+						v-text="i18n.baseText('nodeSettings.nodeTypeUnknown.description.customNode')"
+					/>
+				</template>
+			</i18n-t>
+		</div>
+		<div v-if="node && nodeValid" class="node-parameters-wrapper" data-test-id="node-parameters">
+			<n8n-notice
+				v-if="hasForeignCredential && !isHomeProjectTeam"
+				:content="
+					i18n.baseText('nodeSettings.hasForeignCredential', {
+						interpolate: { owner: credentialOwnerName },
+					})
+				"
+			/>
+			<FreeAiCreditsCallout />
+			<div v-show="openPanel === 'params'">
+				<NodeWebhooks :node="node" :node-type-description="nodeType" />
 
+				<ParameterInputList
+					v-if="nodeValuesInitialized"
+					:parameters="parametersNoneSetting"
+					:hide-delete="true"
+					:node-values="nodeValues"
+					:is-read-only="isReadOnly"
+					:hidden-issues-inputs="hiddenIssuesInputs"
+					path="parameters"
+					@value-changed="valueChanged"
+					@activate="onWorkflowActivate"
+					@parameter-blur="onParameterBlur"
+				>
+					<NodeCredentials
+						:node="node"
+						:readonly="isReadOnly"
+						:show-all="true"
+						:hide-issues="hiddenIssuesInputs.includes('credentials')"
+						@credential-selected="credentialSelected"
+						@value-changed="valueChanged"
+						@blur="onParameterBlur"
+					/>
+				</ParameterInputList>
+				<div v-if="parametersNoneSetting.length === 0" class="no-parameters">
+					<n8n-text>
+						{{ i18n.baseText('nodeSettings.thisNodeDoesNotHaveAnyParameters') }}
+					</n8n-text>
+				</div>
+
+				<div
+					v-if="nodeHelpers.isCustomApiCallSelected(nodeValues)"
+					class="parameter-item parameter-notice"
+					data-test-id="node-parameters-http-notice"
+				>
+					<n8n-notice
+						:content="
+							i18n.baseText('nodeSettings.useTheHttpRequestNode', {
+								interpolate: { nodeTypeDisplayName: nodeType?.displayName ?? '' },
+							})
+						"
+					/>
+				</div>
+			</div>
+			<div v-show="openPanel === 'settings'">
+				<ParameterInputList
+					:parameters="parametersSetting"
+					:node-values="nodeValues"
+					:is-read-only="isReadOnly"
+					:hide-delete="true"
+					:hidden-issues-inputs="hiddenIssuesInputs"
+					path="parameters"
+					@value-changed="valueChanged"
+					@parameter-blur="onParameterBlur"
+				/>
+				<ParameterInputList
+					:parameters="nodeSettings"
+					:hide-delete="true"
+					:node-values="nodeValues"
+					:is-read-only="isReadOnly"
+					:hidden-issues-inputs="hiddenIssuesInputs"
+					path=""
+					@value-changed="valueChanged"
+					@parameter-blur="onParameterBlur"
+				/>
+				<div class="node-version" data-test-id="node-version">
+					{{
+						i18n.baseText('nodeSettings.nodeVersion', {
+							interpolate: {
+								node: nodeType?.displayName as string,
+								version: (node.typeVersion ?? latestVersion).toString(),
+							},
+						})
+					}}
+					<span>({{ nodeVersionTag }})</span>
+				</div>
+			</div>
+		</div>
+		<NDVSubConnections
+			v-if="node"
+			ref="subConnections"
+			:root-node="node"
+			@switch-selected-node="onSwitchSelectedNode"
+			@open-connection-node-creator="onOpenConnectionNodeCreator"
+		/>
+		<n8n-block-ui :show="blockUI" />
+	</div>
+</template>
+
+<style lang="scss" module>
+.header {
+	background-color: var(--color-background-base);
+}
+
+.warningIcon {
+	color: var(--color-text-lighter);
+	font-size: var(--font-size-2xl);
+}
+
+.descriptionContainer {
+	display: flex;
+	flex-direction: column;
+}
+</style>
+
+<style lang="scss" scoped>
 .node-settings {
+	display: flex;
+	flex-direction: column;
 	overflow: hidden;
-	min-width: 350px;
-	max-width: 350px;
+	background-color: var(--color-background-xlight);
+	height: 100%;
+	width: 100%;
 
 	.no-parameters {
 		margin-top: var(--spacing-xs);
 	}
 
 	.header-side-menu {
-		padding: 1em 0 1em 1.8em;
+		padding: var(--spacing-s) var(--spacing-s) var(--spacing-s) var(--spacing-s);
 		font-size: var(--font-size-l);
-		background-color: $--custom-window-sidebar-top;
+		display: flex;
+		justify-content: space-between;
 
-		.node-info {
-			display: none;
-			padding-left: 0.5em;
-			font-size: 0.8em;
-		}
-
-		&:hover {
-			.node-info {
-				display: inline;
-			}
+		.node-name {
+			padding-top: var(--spacing-5xs);
 		}
 	}
 
 	.node-is-not-valid {
+		height: 75%;
 		padding: 10px;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		text-align: center;
+		line-height: var(--font-line-height-regular);
 	}
 
 	.node-parameters-wrapper {
-		height: 100%;
+		overflow-y: auto;
+		padding: 0 var(--spacing-m) var(--spacing-l) var(--spacing-m);
+		flex-grow: 1;
+	}
 
-		.el-tabs__header {
-			background-color: #fff5f2;
-			margin-bottom: 0;
-		}
-
-		.el-tabs {
-			height: 100%;
-			.el-tabs__content {
-				overflow-y: auto;
-				height: 100%;
-				padding-bottom: 180px;
-
-				.el-tab-pane {
-					margin: 0 var(--spacing-s);
-				}
-			}
-		}
-
-		.el-tabs__nav {
-			padding-bottom: var(--spacing-xs);
-		}
-
-		.add-option {
-			i.el-select__caret {
-				color: var(--color-foreground-xlight);
-			}
-			.el-input .el-input__inner {
-				&,
-				&:hover,
-				&:focus {
-					border-radius: 20px;
-					color: var(--color-foreground-xlight);
-					font-weight: 600;
-					background-color: var(--color-primary);
-					border-color: var(--color-primary);
-					text-align: center;
-				}
-
-				&::placeholder {
-					color: var(--color-foreground-xlight);
-					opacity: 1; /** Firefox */
-				}
-			}
-		}
+	&.dragging {
+		border-color: var(--color-primary);
+		box-shadow: 0px 6px 16px rgba(255, 74, 51, 0.15);
 	}
 }
 
@@ -596,7 +1196,7 @@ export default mixins(
 
 	&:before {
 		display: table;
-		content: " ";
+		content: ' ';
 		position: relative;
 		box-sizing: border-box;
 		clear: both;
@@ -609,12 +1209,19 @@ export default mixins(
 
 .color-reset-button-wrapper {
 	position: relative;
-
 }
 .color-reset-button {
 	position: absolute;
 	right: 7px;
 	top: -25px;
+}
+
+.node-version {
+	border-top: var(--border-base);
+	font-size: var(--font-size-xs);
+	font-size: var(--font-size-2xs);
+	padding: var(--spacing-xs) 0 var(--spacing-2xs) 0;
+	color: var(--color-text-light);
 }
 
 .parameter-value {
@@ -624,9 +1231,8 @@ export default mixins(
 		display: inline-block;
 		position: relative;
 		width: 100%;
-		box-sizing:border-box;
+		box-sizing: border-box;
 		background-color: #793300;
 	}
 }
-
 </style>

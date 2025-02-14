@@ -1,17 +1,14 @@
-import {
-	INodeProperties,
-} from 'n8n-workflow';
+import type { INodeProperties } from 'n8n-workflow';
 
-export const attachmentOperations = [
+export const attachmentOperations: INodeProperties[] = [
 	{
 		displayName: 'Operation',
 		name: 'operation',
 		type: 'options',
+		noDataExpression: true,
 		displayOptions: {
 			show: {
-				resource: [
-					'attachment',
-				],
+				resource: ['attachment'],
 			},
 		},
 		options: [
@@ -19,40 +16,44 @@ export const attachmentOperations = [
 				name: 'Create',
 				value: 'create',
 				description: 'Create a attachment',
+				action: 'Create an attachment',
 			},
 			{
 				name: 'Delete',
 				value: 'delete',
 				description: 'Delete a attachment',
+				action: 'Delete an attachment',
 			},
 			{
 				name: 'Get',
 				value: 'get',
 				description: 'Get a attachment',
+				action: 'Get an attachment',
 			},
 			{
-				name: 'Get All',
+				name: 'Get Many',
 				value: 'getAll',
-				description: 'Get all attachments',
+				description: 'Get many attachments',
+				action: 'Get many attachments',
 			},
 			{
 				name: 'Get Summary',
 				value: 'getSummary',
-				description: `Returns an overview of attachment's metadata.`,
+				description: "Returns an overview of attachment's metadata",
+				action: 'Get an attachment summary',
 			},
 			{
 				name: 'Update',
 				value: 'update',
 				description: 'Update a attachment',
+				action: 'Update an attachment',
 			},
 		],
 		default: 'create',
-		description: 'The operation to perform.',
 	},
-] as INodeProperties[];
+];
 
-export const attachmentFields = [
-
+export const attachmentFields: INodeProperties[] = [
 	/* -------------------------------------------------------------------------- */
 	/*                                attachment:create                           */
 	/* -------------------------------------------------------------------------- */
@@ -64,15 +65,10 @@ export const attachmentFields = [
 		required: true,
 		displayOptions: {
 			show: {
-				resource: [
-					'attachment',
-				],
-				operation: [
-					'create',
-				],
+				resource: ['attachment'],
+				operation: ['create'],
 			},
 		},
-		description: '',
 	},
 	{
 		displayName: 'Name',
@@ -82,34 +78,27 @@ export const attachmentFields = [
 		required: true,
 		displayOptions: {
 			show: {
-				resource: [
-					'attachment',
-				],
-				operation: [
-					'create',
-				],
+				resource: ['attachment'],
+				operation: ['create'],
 			},
 		},
-		description: 'Required. Name of the attached file. Maximum size is 255 characters. Label is File Name.',
+		description:
+			'Required. Name of the attached file. Maximum size is 255 characters. Label is File Name.',
 	},
 	{
-		displayName: 'Binary Property',
+		displayName: 'Input Binary Field',
 		name: 'binaryPropertyName',
 		type: 'string',
 		default: 'data',
 		required: true,
 		displayOptions: {
 			show: {
-				resource: [
-					'attachment',
-				],
-				operation: [
-					'create',
-				],
+				resource: ['attachment'],
+				operation: ['create'],
 			},
 		},
 		placeholder: '',
-		description: 'Name of the binary property which contains the data for the file to be uploaded.',
+		hint: 'The name of the input binary field containing the file to be uploaded',
 	},
 	{
 		displayName: 'Additional Fields',
@@ -119,12 +108,8 @@ export const attachmentFields = [
 		default: {},
 		displayOptions: {
 			show: {
-				resource: [
-					'attachment',
-				],
-				operation: [
-					'create',
-				],
+				resource: ['attachment'],
+				operation: ['create'],
 			},
 		},
 		options: [
@@ -133,24 +118,26 @@ export const attachmentFields = [
 				name: 'description',
 				type: 'string',
 				default: '',
-				description: `Text description of the Document. Limit: 255 characters.`,
+				description: 'Text description of the Document. Limit: 255 characters.',
 			},
 			{
 				displayName: 'Is Private',
 				name: 'isPrivate',
 				type: 'boolean',
 				default: false,
-				description: 'Indicates whether this record is viewable only by the owner and administrators (true) or viewable by all otherwise-allowed users (false). ',
+				description:
+					'Whether this record is viewable only by the owner and administrators (true) or viewable by all otherwise-allowed users (false)',
 			},
 			{
-				displayName: 'Owner',
+				displayName: 'Owner Name or ID',
 				name: 'owner',
 				type: 'options',
 				typeOptions: {
 					loadOptionsMethod: 'getUsers',
 				},
 				default: '',
-				description: 'ID of the User who owns the attachment.',
+				description:
+					'ID of the User who owns the attachment. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
 			},
 		],
 	},
@@ -166,15 +153,11 @@ export const attachmentFields = [
 		default: '',
 		displayOptions: {
 			show: {
-				resource: [
-					'attachment',
-				],
-				operation: [
-					'update',
-				],
+				resource: ['attachment'],
+				operation: ['update'],
 			},
 		},
-		description: 'ID of attachment that needs to be fetched.',
+		description: 'ID of attachment that needs to be fetched',
 	},
 	{
 		displayName: 'Update Fields',
@@ -184,53 +167,52 @@ export const attachmentFields = [
 		default: {},
 		displayOptions: {
 			show: {
-				resource: [
-					'attachment',
-				],
-				operation: [
-					'update',
-				],
+				resource: ['attachment'],
+				operation: ['update'],
 			},
 		},
 		options: [
 			{
-				displayName: 'Binary Property',
+				displayName: 'Input Binary Field',
 				name: 'binaryPropertyName',
 				type: 'string',
 				default: 'data',
 				placeholder: '',
-				description: 'Name of the binary property which contains the data for the file to be uploaded.',
+				hint: 'The name of the input binary field containing the file to be uploaded',
 			},
 			{
 				displayName: 'Description',
 				name: 'description',
 				type: 'string',
 				default: '',
-				description: `Text description of the Document. Limit: 255 characters.`,
+				description: 'Text description of the Document. Limit: 255 characters.',
 			},
 			{
 				displayName: 'Is Private',
 				name: 'isPrivate',
 				type: 'boolean',
 				default: false,
-				description: 'Indicates whether this record is viewable only by the owner and administrators (true) or viewable by all otherwise-allowed users (false). ',
+				description:
+					'Whether this record is viewable only by the owner and administrators (true) or viewable by all otherwise-allowed users (false)',
 			},
 			{
 				displayName: 'Name',
 				name: 'name',
 				type: 'string',
 				default: '',
-				description: 'Required. Name of the attached file. Maximum size is 255 characters. Label is File Name.',
+				description:
+					'Required. Name of the attached file. Maximum size is 255 characters. Label is File Name.',
 			},
 			{
-				displayName: 'Owner',
+				displayName: 'Owner Name or ID',
 				name: 'owner',
 				type: 'options',
 				typeOptions: {
 					loadOptionsMethod: 'getUsers',
 				},
 				default: '',
-				description: 'ID of the User who owns the attachment.',
+				description:
+					'ID of the User who owns the attachment. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
 			},
 		],
 	},
@@ -246,15 +228,11 @@ export const attachmentFields = [
 		default: '',
 		displayOptions: {
 			show: {
-				resource: [
-					'attachment',
-				],
-				operation: [
-					'get',
-				],
+				resource: ['attachment'],
+				operation: ['get'],
 			},
 		},
-		description: 'ID of attachment that needs to be fetched.',
+		description: 'ID of attachment that needs to be fetched',
 	},
 
 	/* -------------------------------------------------------------------------- */
@@ -268,15 +246,11 @@ export const attachmentFields = [
 		default: '',
 		displayOptions: {
 			show: {
-				resource: [
-					'attachment',
-				],
-				operation: [
-					'delete',
-				],
+				resource: ['attachment'],
+				operation: ['delete'],
 			},
 		},
-		description: 'ID of attachment that needs to be fetched.',
+		description: 'ID of attachment that needs to be fetched',
 	},
 
 	/* -------------------------------------------------------------------------- */
@@ -288,16 +262,12 @@ export const attachmentFields = [
 		type: 'boolean',
 		displayOptions: {
 			show: {
-				resource: [
-					'attachment',
-				],
-				operation: [
-					'getAll',
-				],
+				resource: ['attachment'],
+				operation: ['getAll'],
 			},
 		},
 		default: false,
-		description: 'If all results should be returned or only up to a given limit.',
+		description: 'Whether to return all results or only up to a given limit',
 	},
 	{
 		displayName: 'Limit',
@@ -305,15 +275,9 @@ export const attachmentFields = [
 		type: 'number',
 		displayOptions: {
 			show: {
-				resource: [
-					'attachment',
-				],
-				operation: [
-					'getAll',
-				],
-				returnAll: [
-					false,
-				],
+				resource: ['attachment'],
+				operation: ['getAll'],
+				returnAll: [false],
 			},
 		},
 		typeOptions: {
@@ -321,7 +285,7 @@ export const attachmentFields = [
 			maxValue: 100,
 		},
 		default: 50,
-		description: 'How many results to return.',
+		description: 'Max number of results to return',
 	},
 	{
 		displayName: 'Options',
@@ -331,12 +295,8 @@ export const attachmentFields = [
 		default: {},
 		displayOptions: {
 			show: {
-				resource: [
-					'attachment',
-				],
-				operation: [
-					'getAll',
-				],
+				resource: ['attachment'],
+				operation: ['getAll'],
 			},
 		},
 		options: [
@@ -348,7 +308,7 @@ export const attachmentFields = [
 				typeOptions: {
 					multipleValues: true,
 				},
-				description: 'The condition to set.',
+				description: 'The condition to set',
 				default: {},
 				options: [
 					{
@@ -356,20 +316,30 @@ export const attachmentFields = [
 						displayName: 'Condition',
 						values: [
 							{
-								displayName: 'Field',
+								displayName: 'Field Name or ID',
 								name: 'field',
 								type: 'options',
 								typeOptions: {
 									loadOptionsMethod: 'getAtachmentFields',
 								},
 								default: '',
-								description: 'For date, number, or boolean, please use expressions.',
+								description:
+									'For date, number, or boolean, please use expressions. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
 							},
+							// eslint-disable-next-line n8n-nodes-base/node-param-operation-without-no-data-expression
 							{
 								displayName: 'Operation',
 								name: 'operation',
 								type: 'options',
 								options: [
+									{
+										name: '<',
+										value: '<',
+									},
+									{
+										name: '<=',
+										value: '<=',
+									},
 									{
 										name: '=',
 										value: 'equal',
@@ -379,16 +349,8 @@ export const attachmentFields = [
 										value: '>',
 									},
 									{
-										name: '<',
-										value: '<',
-									},
-									{
 										name: '>=',
 										value: '>=',
-									},
-									{
-										name: '<=',
-										value: '<=',
 									},
 								],
 								default: 'equal',
@@ -412,4 +374,4 @@ export const attachmentFields = [
 			},
 		],
 	},
-] as INodeProperties[];
+];

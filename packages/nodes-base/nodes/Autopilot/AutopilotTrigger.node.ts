@@ -1,22 +1,15 @@
-import {
+import { snakeCase } from 'change-case';
+import type {
 	IHookFunctions,
 	IWebhookFunctions,
-} from 'n8n-core';
-
-import {
 	IDataObject,
 	INodeType,
 	INodeTypeDescription,
 	IWebhookResponseData,
 } from 'n8n-workflow';
+import { NodeConnectionType } from 'n8n-workflow';
 
-import {
-	autopilotApiRequest,
-} from './GenericFunctions';
-
-import {
-	snakeCase,
-} from 'change-case';
+import { autopilotApiRequest } from './GenericFunctions';
 
 export class AutopilotTrigger implements INodeType {
 	description: INodeTypeDescription = {
@@ -29,10 +22,9 @@ export class AutopilotTrigger implements INodeType {
 		description: 'Handle Autopilot events via webhooks',
 		defaults: {
 			name: 'Autopilot Trigger',
-			color: '#6ad7b9',
 		},
 		inputs: [],
-		outputs: ['main'],
+		outputs: [NodeConnectionType.Main],
 		credentials: [
 			{
 				name: 'autopilotApi',
@@ -88,7 +80,6 @@ export class AutopilotTrigger implements INodeType {
 		],
 	};
 
-	// @ts-ignore
 	webhookMethods = {
 		default: {
 			async checkExists(this: IHookFunctions): Promise<boolean> {
@@ -132,9 +123,7 @@ export class AutopilotTrigger implements INodeType {
 	async webhook(this: IWebhookFunctions): Promise<IWebhookResponseData> {
 		const req = this.getRequestObject();
 		return {
-			workflowData: [
-				this.helpers.returnJsonArray(req.body),
-			],
+			workflowData: [this.helpers.returnJsonArray(req.body as IDataObject[])],
 		};
 	}
 }
