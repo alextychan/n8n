@@ -1,95 +1,98 @@
+<script setup lang="ts">
+import { computed } from 'vue';
+import type { IBinaryData, IRunData } from 'n8n-workflow';
+import BinaryDataDisplayEmbed from '@/components/BinaryDataDisplayEmbed.vue';
+import { useWorkflowsStore } from '@/stores/workflows.store';
+import { useNodeHelpers } from '@/composables/useNodeHelpers';
+import { useI18n } from '@/composables/useI18n';
+
+const props = defineProps<{
+	displayData: IBinaryData;
+	windowVisible: boolean;
+}>();
+
+const emit = defineEmits<{
+	close: [];
+}>();
+
+const nodeHelpers = useNodeHelpers();
+const workflowsStore = useWorkflowsStore();
+
+const i18n = useI18n();
+
+const workflowRunData = computed<IRunData | null>(() => {
+	const workflowExecution = workflowsStore.getWorkflowExecution;
+	if (workflowExecution === null) {
+		return null;
+	}
+	const executionData = workflowExecution.data;
+	return executionData ? executionData.resultData.runData : null;
+});
+
+const binaryData = computed<IBinaryData | null>(() => {
+	if (
+		typeof props.displayData.node !== 'string' ||
+		typeof props.displayData.key !== 'string' ||
+		typeof props.displayData.runIndex !== 'number' ||
+		typeof props.displayData.index !== 'number' ||
+		typeof props.displayData.outputIndex !== 'number'
+	) {
+		return null;
+	}
+
+	const binaryDataLocal = nodeHelpers.getBinaryData(
+		workflowRunData.value,
+		props.displayData.node,
+		props.displayData.runIndex,
+		props.displayData.outputIndex,
+	);
+
+	if (binaryDataLocal.length === 0) {
+		return null;
+	}
+
+	if (
+		props.displayData.index >= binaryDataLocal.length ||
+		binaryDataLocal[props.displayData.index][props.displayData.key] === undefined
+	) {
+		return null;
+	}
+
+	const binaryDataItem: IBinaryData =
+		binaryDataLocal[props.displayData.index][props.displayData.key];
+
+	return binaryDataItem;
+});
+
+function closeWindow() {
+	// Handle the close externally as the visible parameter is an external prop
+	// and is so not allowed to be changed here.
+	emit('close');
+	return false;
+}
+</script>
+
 <template>
-	<div v-if="windowVisible" class="binary-data-window">
+	<div v-if="windowVisible" :class="['binary-data-window', binaryData?.fileType]">
 		<n8n-button
-			@click.stop="closeWindow"
 			size="small"
 			class="binary-data-window-back"
-			title="Back to overview page"
+			:title="i18n.baseText('binaryDataDisplay.backToOverviewPage')"
 			icon="arrow-left"
-			label="Back to list"
+			:label="i18n.baseText('binaryDataDisplay.backToList')"
+			@click.stop="closeWindow"
 		/>
 
 		<div class="binary-data-window-wrapper">
 			<div v-if="!binaryData">
-				Data to display did not get found
+				{{ i18n.baseText('binaryDataDisplay.noDataFoundToDisplay') }}
 			</div>
-			<video v-else-if="binaryData.mimeType && binaryData.mimeType.startsWith('video/')" controls autoplay>
-				<source :src="'data:' + binaryData.mimeType + ';base64,' + binaryData.data" :type="binaryData.mimeType">
-				Your browser does not support the video element. Kindly update it to latest version.
-			</video>
-			<embed v-else :src="'data:' + binaryData.mimeType + ';base64,' + binaryData.data" class="binary-data" :class="embedClass"/>
+			<BinaryDataDisplayEmbed v-else :binary-data="binaryData" />
 		</div>
-
 	</div>
 </template>
 
-<script lang="ts">
-import {
-	IBinaryData,
-	IRunData,
-	IRunExecutionData,
-} from 'n8n-workflow';
-
-import { nodeHelpers } from '@/components/mixins/nodeHelpers';
-
-import mixins from 'vue-typed-mixins';
-
-export default mixins(
-	nodeHelpers,
-)
-	.extend({
-		name: 'BinaryDataDisplay',
-		props: [
-			'displayData', // IBinaryDisplayData
-			'windowVisible', // boolean
-		],
-		computed: {
-			binaryData (): IBinaryData | null {
-				const binaryData = this.getBinaryData(this.workflowRunData, this.displayData.node, this.displayData.runIndex, this.displayData.outputIndex);
-
-				if (binaryData.length === 0) {
-					return null;
-				}
-
-				if (this.displayData.index >= binaryData.length || binaryData[this.displayData.index][this.displayData.key] === undefined) {
-					return null;
-				}
-				return binaryData[this.displayData.index][this.displayData.key];
-			},
-
-			embedClass (): string[] {
-				if (this.binaryData !== null &&
-					this.binaryData.mimeType !== undefined &&
-					(this.binaryData.mimeType as string).startsWith('image')
-				) {
-					return ['image'];
-				}
-				return ['other'];
-			},
-
-			workflowRunData (): IRunData | null {
-				const workflowExecution = this.$store.getters.getWorkflowExecution;
-				if (workflowExecution === null) {
-					return null;
-				}
-				const executionData: IRunExecutionData = workflowExecution.data;
-				return executionData.resultData.runData;
-			},
-
-		},
-		methods: {
-			closeWindow () {
-				// Handle the close externally as the visible parameter is an external prop
-				// and is so not allowed to be changed here.
-				this.$emit('close');
-				return false;
-			},
-		},
-	});
-</script>
-
 <style lang="scss">
-
 .binary-data-window {
 	position: absolute;
 	top: 50px;
@@ -97,12 +100,16 @@ export default mixins(
 	z-index: 10;
 	width: 100%;
 	height: calc(100% - 50px);
-	background-color: #f9f9f9;
+	background-color: var(--color-run-data-background);
 	overflow: hidden;
 	text-align: center;
 
+	&.json {
+		overflow: auto;
+	}
+
 	.binary-data-window-wrapper {
-		margin-top: .5em;
+		margin-top: 0.5em;
 		padding: 0 1em;
 		height: calc(100% - 50px);
 
@@ -111,21 +118,5 @@ export default mixins(
 			height: 100%;
 		}
 	}
-
-	.binary-data {
-		background-color: #fff;
-
-		&.image {
-			max-height: calc(100% - 1em);
-			max-width: calc(100% - 1em);
-		}
-
-		&.other {
-			height: calc(100% - 1em);
-			width: calc(100% - 1em);
-		}
-	}
-
 }
-
 </style>

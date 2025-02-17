@@ -1,19 +1,14 @@
-import {
+import type {
 	IHookFunctions,
 	IWebhookFunctions,
-} from 'n8n-core';
-
-import {
 	IDataObject,
 	INodeType,
 	INodeTypeDescription,
 	IWebhookResponseData,
 } from 'n8n-workflow';
+import { NodeConnectionType } from 'n8n-workflow';
 
-import {
-	copperApiRequest,
-	getAutomaticSecret,
-} from './GenericFunctions';
+import { copperApiRequest, getAutomaticSecret } from './GenericFunctions';
 
 export class CopperTrigger implements INodeType {
 	description: INodeTypeDescription = {
@@ -25,10 +20,9 @@ export class CopperTrigger implements INodeType {
 		description: 'Handle Copper events via webhooks',
 		defaults: {
 			name: 'Copper Trigger',
-			color: '#ff2564',
 		},
 		inputs: [],
-		outputs: ['main'],
+		outputs: [NodeConnectionType.Main],
 		credentials: [
 			{
 				name: 'copperApi',
@@ -48,6 +42,7 @@ export class CopperTrigger implements INodeType {
 				displayName: 'Resource',
 				name: 'resource',
 				type: 'options',
+				noDataExpression: true,
 				required: true,
 				default: '',
 				options: [
@@ -76,7 +71,7 @@ export class CopperTrigger implements INodeType {
 						value: 'task',
 					},
 				],
-				description: 'The resource which will fire the event.',
+				description: 'The resource which will fire the event',
 			},
 			{
 				displayName: 'Event',
@@ -101,11 +96,11 @@ export class CopperTrigger implements INodeType {
 						description: 'Any field in the existing entity record is changed',
 					},
 				],
-				description: 'The event to listen to.',
+				description: 'The event to listen to',
 			},
 		],
 	};
-	// @ts-ignore
+
 	webhookMethods = {
 		default: {
 			async checkExists(this: IHookFunctions): Promise<boolean> {
@@ -135,7 +130,7 @@ export class CopperTrigger implements INodeType {
 
 				const credentials = await this.getCredentials('copperApi');
 				body.secret = {
-					secret: getAutomaticSecret(credentials!),
+					secret: getAutomaticSecret(credentials),
 				};
 
 				const { id } = await copperApiRequest.call(this, 'POST', endpoint, body);
@@ -161,14 +156,12 @@ export class CopperTrigger implements INodeType {
 		const req = this.getRequestObject();
 
 		// Check if the supplied secret matches. If not ignore request.
-		if (req.body.secret !== getAutomaticSecret(credentials!)) {
+		if (req.body.secret !== getAutomaticSecret(credentials)) {
 			return {};
 		}
 
 		return {
-			workflowData: [
-				this.helpers.returnJsonArray(req.body),
-			],
+			workflowData: [this.helpers.returnJsonArray(req.body as IDataObject)],
 		};
 	}
 }

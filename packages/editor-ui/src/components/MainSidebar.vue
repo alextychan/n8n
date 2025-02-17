@@ -1,690 +1,594 @@
-<template>
-	<div id="side-menu">
-		<about :dialogVisible="aboutDialogVisible" @closeDialog="closeAboutDialog"></about>
-		<executions-list :dialogVisible="executionsListDialogVisible" @closeDialog="closeExecutionsListOpenDialog"></executions-list>
-		<input type="file" ref="importFile" style="display: none" v-on:change="handleFileImport()">
+<script setup lang="ts">
+import { computed, onBeforeUnmount, onMounted, ref, nextTick, type Ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { useBecomeTemplateCreatorStore } from '@/components/BecomeTemplateCreatorCta/becomeTemplateCreatorStore';
+import { useCloudPlanStore } from '@/stores/cloudPlan.store';
+import { useRootStore } from '@/stores/root.store';
+import { useSettingsStore } from '@/stores/settings.store';
+import { useTemplatesStore } from '@/stores/templates.store';
+import { useUIStore } from '@/stores/ui.store';
+import { useUsersStore } from '@/stores/users.store';
+import { useVersionsStore } from '@/stores/versions.store';
+import { useWorkflowsStore } from '@/stores/workflows.store';
+import { useSourceControlStore } from '@/stores/sourceControl.store';
 
-		<div class="side-menu-wrapper" :class="{expanded: !isCollapsed}">
-			<div id="collapse-change-button" class="clickable" @click="toggleCollapse">
-				<font-awesome-icon icon="angle-right" class="icon" />
-			</div>
-			<n8n-menu default-active="workflow" @select="handleSelect" :collapse="isCollapsed">
+import { hasPermission } from '@/utils/rbac/permissions';
+import { useDebounce } from '@/composables/useDebounce';
+import { useExternalHooks } from '@/composables/useExternalHooks';
+import { useI18n } from '@/composables/useI18n';
+import { useTelemetry } from '@/composables/useTelemetry';
+import { useUserHelpers } from '@/composables/useUserHelpers';
 
-				<n8n-menu-item index="logo" class="logo-item">
-					<a href="https://n8n.io" target="_blank" class="logo">
-						<img :src="basePath + 'n8n-icon-small.png'" class="icon" alt="n8n.io"/>
-						<span class="logo-text" slot="title">n8n.io</span>
-					</a>
-				</n8n-menu-item>
+import { ABOUT_MODAL_KEY, VERSIONS_MODAL_KEY, VIEWS } from '@/constants';
+import { useBugReporting } from '@/composables/useBugReporting';
+import { usePageRedirectionHelper } from '@/composables/usePageRedirectionHelper';
 
-				<MenuItemsIterator :items="sidebarMenuTopItems" :root="true"/>
+import { useGlobalEntityCreation } from '@/composables/useGlobalEntityCreation';
+import { N8nNavigationDropdown, N8nTooltip, N8nLink, N8nIconButton } from 'n8n-design-system';
+import { onClickOutside, type VueInstance } from '@vueuse/core';
+import Logo from './Logo/Logo.vue';
 
-				<el-submenu index="workflow" title="Workflow" popperClass="sidebar-popper">
-					<template slot="title">
-						<font-awesome-icon icon="network-wired"/>&nbsp;
-						<span slot="title" class="item-title-root">Workflows</span>
-					</template>
+const becomeTemplateCreatorStore = useBecomeTemplateCreatorStore();
+const cloudPlanStore = useCloudPlanStore();
+const rootStore = useRootStore();
+const settingsStore = useSettingsStore();
+const templatesStore = useTemplatesStore();
+const uiStore = useUIStore();
+const usersStore = useUsersStore();
+const versionsStore = useVersionsStore();
+const workflowsStore = useWorkflowsStore();
+const sourceControlStore = useSourceControlStore();
 
-					<n8n-menu-item index="workflow-new">
-						<template slot="title">
-							<font-awesome-icon icon="file"/>&nbsp;
-							<span slot="title" class="item-title">New</span>
-						</template>
-					</n8n-menu-item>
-					<n8n-menu-item index="workflow-open">
-						<template slot="title">
-							<font-awesome-icon icon="folder-open"/>&nbsp;
-							<span slot="title" class="item-title">Open</span>
-						</template>
-					</n8n-menu-item>
-					<n8n-menu-item index="workflow-save">
-						<template slot="title">
-							<font-awesome-icon icon="save"/>
-							<span slot="title" class="item-title">Save</span>
-						</template>
-					</n8n-menu-item>
-					<n8n-menu-item index="workflow-duplicate" :disabled="!currentWorkflow">
-						<template slot="title">
-							<font-awesome-icon icon="copy"/>
-							<span slot="title" class="item-title">Duplicate</span>
-						</template>
-					</n8n-menu-item>
-					<n8n-menu-item index="workflow-delete" :disabled="!currentWorkflow">
-						<template slot="title">
-							<font-awesome-icon icon="trash"/>
-							<span slot="title" class="item-title">Delete</span>
-						</template>
-					</n8n-menu-item>
-					<n8n-menu-item index="workflow-download">
-						<template slot="title">
-							<font-awesome-icon icon="file-download"/>
-							<span slot="title" class="item-title">Download</span>
-						</template>
-					</n8n-menu-item>
-					<n8n-menu-item index="workflow-import-url">
-						<template slot="title">
-							<font-awesome-icon icon="cloud"/>
-							<span slot="title" class="item-title">Import from URL</span>
-						</template>
-					</n8n-menu-item>
-					<n8n-menu-item index="workflow-import-file">
-						<template slot="title">
-							<font-awesome-icon icon="hdd"/>
-							<span slot="title" class="item-title">Import from File</span>
-						</template>
-					</n8n-menu-item>
-					<n8n-menu-item index="workflow-settings" :disabled="!currentWorkflow">
-						<template slot="title">
-							<font-awesome-icon icon="cog"/>
-							<span slot="title" class="item-title">Settings</span>
-						</template>
-					</n8n-menu-item>
-				</el-submenu>
+const { callDebounced } = useDebounce();
+const externalHooks = useExternalHooks();
+const i18n = useI18n();
+const route = useRoute();
+const router = useRouter();
+const telemetry = useTelemetry();
+const pageRedirectionHelper = usePageRedirectionHelper();
+const { getReportingURL } = useBugReporting();
 
-				<el-submenu index="credentials" title="Credentials" popperClass="sidebar-popper">
-					<template slot="title">
-						<font-awesome-icon icon="key"/>&nbsp;
-						<span slot="title" class="item-title-root">Credentials</span>
-					</template>
+useUserHelpers(router, route);
 
-					<n8n-menu-item index="credentials-new">
-						<template slot="title">
-							<font-awesome-icon icon="file"/>
-							<span slot="title" class="item-title">New</span>
-						</template>
-					</n8n-menu-item>
-					<n8n-menu-item index="credentials-open">
-						<template slot="title">
-							<font-awesome-icon icon="folder-open"/>
-							<span slot="title" class="item-title">Open</span>
-						</template>
-					</n8n-menu-item>
-				</el-submenu>
+// Template refs
+const user = ref<Element | null>(null);
 
-				<n8n-menu-item index="executions">
-					<font-awesome-icon icon="tasks"/>&nbsp;
-					<span slot="title" class="item-title-root">Executions</span>
-				</n8n-menu-item>
-
-				<el-submenu index="help" class="help-menu" title="Help" popperClass="sidebar-popper">
-					<template slot="title">
-						<font-awesome-icon icon="question"/>&nbsp;
-						<span slot="title" class="item-title-root">Help</span>
-					</template>
-
-					<MenuItemsIterator :items="helpMenuItems" :afterItemClick="trackHelpItemClick" />
-
-					<n8n-menu-item index="help-about">
-						<template slot="title">
-							<font-awesome-icon class="about-icon" icon="info"/>
-							<span slot="title" class="item-title">About n8n</span>
-						</template>
-					</n8n-menu-item>
-				</el-submenu>
-
-				<MenuItemsIterator :items="sidebarMenuBottomItems" :root="true"/>
-
-				<div class="footer-menu-items">
-					<n8n-menu-item index="updates" class="updates" v-if="hasVersionUpdates" @click="openUpdatesPanel">
-						<div class="gift-container">
-							<GiftNotificationIcon />
-						</div>
-						<span slot="title" class="item-title-root">{{nextVersions.length > 99 ? '99+' : nextVersions.length}} update{{nextVersions.length > 1 ? 's' : ''}} available</span>
-					</n8n-menu-item>
-				</div>
-			</n8n-menu>
-
-		</div>
-	</div>
-
-</template>
-
-<script lang="ts">
-
-import { MessageBoxInputData } from 'element-ui/types/message-box';
-
-import {
-	IExecutionResponse,
-	IWorkflowDataUpdate,
-	IMenuItem,
-} from '../Interface';
-
-import About from '@/components/About.vue';
-import ExecutionsList from '@/components/ExecutionsList.vue';
-import GiftNotificationIcon from './GiftNotificationIcon.vue';
-import WorkflowSettings from '@/components/WorkflowSettings.vue';
-
-import { genericHelpers } from '@/components/mixins/genericHelpers';
-import { restApi } from '@/components/mixins/restApi';
-import { showMessage } from '@/components/mixins/showMessage';
-import { titleChange } from '@/components/mixins/titleChange';
-import { workflowHelpers } from '@/components/mixins/workflowHelpers';
-import { workflowRun } from '@/components/mixins/workflowRun';
-
-import { saveAs } from 'file-saver';
-
-import mixins from 'vue-typed-mixins';
-import { mapGetters } from 'vuex';
-import MenuItemsIterator from './MainSidebarMenuItemsIterator.vue';
-import { CREDENTIAL_LIST_MODAL_KEY, CREDENTIAL_SELECT_MODAL_KEY, DUPLICATE_MODAL_KEY, TAGS_MANAGER_MODAL_KEY, VERSIONS_MODAL_KEY, WORKFLOW_SETTINGS_MODAL_KEY, WORKFLOW_OPEN_MODAL_KEY } from '@/constants';
-
-const helpMenuItems: IMenuItem[] = [
+// Component data
+const basePath = ref('');
+const fullyExpanded = ref(false);
+const userMenuItems = ref([
 	{
-		id: 'docs',
-		type: 'link',
-		properties: {
-			href: 'https://docs.n8n.io',
-			title: 'Documentation',
-			icon: 'book',
-			newWindow: true,
+		id: 'settings',
+		label: i18n.baseText('settings'),
+	},
+	{
+		id: 'logout',
+		label: i18n.baseText('auth.signout'),
+	},
+]);
+
+const mainMenuItems = computed(() => [
+	{
+		id: 'cloud-admin',
+		position: 'bottom',
+		label: 'Admin Panel',
+		icon: 'cloud',
+		available: settingsStore.isCloudDeployment && hasPermission(['instanceOwner']),
+	},
+	{
+		// Link to in-app templates, available if custom templates are enabled
+		id: 'templates',
+		icon: 'box-open',
+		label: i18n.baseText('mainSidebar.templates'),
+		position: 'bottom',
+		available: settingsStore.isTemplatesEnabled && templatesStore.hasCustomTemplatesHost,
+		route: { to: { name: VIEWS.TEMPLATES } },
+	},
+	{
+		// Link to website templates, available if custom templates are not enabled
+		id: 'templates',
+		icon: 'box-open',
+		label: i18n.baseText('mainSidebar.templates'),
+		position: 'bottom',
+		available: settingsStore.isTemplatesEnabled && !templatesStore.hasCustomTemplatesHost,
+		link: {
+			href: templatesStore.websiteTemplateRepositoryURL,
+			target: '_blank',
 		},
 	},
 	{
-		id: 'forum',
-		type: 'link',
-		properties: {
-			href: 'https://community.n8n.io',
-			title: 'Forum',
-			icon: 'users',
-			newWindow: true,
-		},
+		id: 'variables',
+		icon: 'variable',
+		label: i18n.baseText('mainSidebar.variables'),
+		customIconSize: 'medium',
+		position: 'bottom',
+		route: { to: { name: VIEWS.VARIABLES } },
 	},
 	{
-		id: 'examples',
-		type: 'link',
-		properties: {
-			href: 'https://n8n.io/workflows',
-			title: 'Workflows',
-			icon: 'network-wired',
-			newWindow: true,
-		},
+		id: 'help',
+		icon: 'question',
+		label: i18n.baseText('mainSidebar.help'),
+		position: 'bottom',
+		children: [
+			{
+				id: 'quickstart',
+				icon: 'video',
+				label: i18n.baseText('mainSidebar.helpMenuItems.quickstart'),
+				link: {
+					href: 'https://www.youtube.com/watch?v=1MwSoB0gnM4',
+					target: '_blank',
+				},
+			},
+			{
+				id: 'docs',
+				icon: 'book',
+				label: i18n.baseText('mainSidebar.helpMenuItems.documentation'),
+				link: {
+					href: 'https://docs.n8n.io?utm_source=n8n_app&utm_medium=app_sidebar',
+					target: '_blank',
+				},
+			},
+			{
+				id: 'forum',
+				icon: 'users',
+				label: i18n.baseText('mainSidebar.helpMenuItems.forum'),
+				link: {
+					href: 'https://community.n8n.io?utm_source=n8n_app&utm_medium=app_sidebar',
+					target: '_blank',
+				},
+			},
+			{
+				id: 'examples',
+				icon: 'graduation-cap',
+				label: i18n.baseText('mainSidebar.helpMenuItems.course'),
+				link: {
+					href: 'https://docs.n8n.io/courses/',
+					target: '_blank',
+				},
+			},
+			{
+				id: 'report-bug',
+				icon: 'bug',
+				label: i18n.baseText('mainSidebar.helpMenuItems.reportBug'),
+				link: {
+					href: getReportingURL(),
+					target: '_blank',
+				},
+			},
+			{
+				id: 'about',
+				icon: 'info',
+				label: i18n.baseText('mainSidebar.aboutN8n'),
+				position: 'bottom',
+			},
+		],
 	},
-];
+]);
+const createBtn = ref<InstanceType<typeof N8nNavigationDropdown>>();
 
-export default mixins(
-	genericHelpers,
-	restApi,
-	showMessage,
-	titleChange,
-	workflowHelpers,
-	workflowRun,
-)
-	.extend({
-		name: 'MainHeader',
-		components: {
-			About,
-			ExecutionsList,
-			GiftNotificationIcon,
-			WorkflowSettings,
-			MenuItemsIterator,
-		},
-		data () {
-			return {
-				aboutDialogVisible: false,
-				// @ts-ignore
-				basePath: this.$store.getters.getBaseUrl,
-				executionsListDialogVisible: false,
-				stopExecutionInProgress: false,
-				helpMenuItems,
-			};
-		},
-		computed: {
-			...mapGetters('ui', {
-				isCollapsed: 'sidebarMenuCollapsed',
-			}),
-			...mapGetters('versions', [
-				'hasVersionUpdates',
-				'nextVersions',
-			]),
-			exeuctionId (): string | undefined {
-				return this.$route.params.id;
-			},
-			executionFinished (): boolean {
-				if (!this.isExecutionPage) {
-					// We are not on an exeuction page so return false
-					return false;
-				}
+const isCollapsed = computed(() => uiStore.sidebarMenuCollapsed);
 
-				const fullExecution = this.$store.getters.getWorkflowExecution;
+const hasVersionUpdates = computed(
+	() => settingsStore.settings.releaseChannel === 'stable' && versionsStore.hasVersionUpdates,
+);
 
-				if (fullExecution === null) {
-					// No exeuction loaded so return also false
-					return false;
-				}
+const nextVersions = computed(() => versionsStore.nextVersions);
+const showUserArea = computed(() => hasPermission(['authenticated']));
+const userIsTrialing = computed(() => cloudPlanStore.userIsTrialing);
 
-				if (fullExecution.finished === true) {
-					return true;
-				}
+onMounted(async () => {
+	window.addEventListener('resize', onResize);
+	basePath.value = rootStore.baseUrl;
+	if (user.value) {
+		void externalHooks.run('mainSidebar.mounted', {
+			userRef: user.value,
+		});
+	}
 
-				return false;
-			},
-			executionWaitingForWebhook (): boolean {
-				return this.$store.getters.executionWaitingForWebhook;
-			},
-			isExecutionPage (): boolean {
-				if (['ExecutionById'].includes(this.$route.name as string)) {
-					return true;
-				}
-				return false;
-			},
-			isWorkflowActive (): boolean {
-				return this.$store.getters.isActive;
-			},
-			currentWorkflow (): string {
-				return this.$route.params.name;
-			},
-			workflowExecution (): IExecutionResponse | null {
-				return this.$store.getters.getWorkflowExecution;
-			},
-			workflowName (): string {
-				return this.$store.getters.workflowName;
-			},
-			workflowRunning (): boolean {
-				return this.$store.getters.isActionActive('workflowRunning');
-			},
-			sidebarMenuTopItems(): IMenuItem[] {
-				return this.$store.getters.sidebarMenuItems.filter((item: IMenuItem) => item.position === 'top');
-			},
-			sidebarMenuBottomItems(): IMenuItem[] {
-				return this.$store.getters.sidebarMenuItems.filter((item: IMenuItem) => item.position === 'bottom');
-			},
-		},
-		methods: {
-			trackHelpItemClick (itemType: string) {
-				this.$telemetry.track('User clicked help resource', { type: itemType, workflow_id: this.$store.getters.workflowId });
-			},
-			toggleCollapse () {
-				this.$store.commit('ui/toggleSidebarMenuCollapse');
-			},
-			clearExecutionData () {
-				this.$store.commit('setWorkflowExecutionData', null);
-				this.updateNodesExecutionIssues();
-			},
-			closeAboutDialog () {
-				this.aboutDialogVisible = false;
-			},
-			closeExecutionsListOpenDialog () {
-				this.executionsListDialogVisible = false;
-			},
-			openTagManager() {
-				this.$store.dispatch('ui/openModal', TAGS_MANAGER_MODAL_KEY);
-			},
-			openUpdatesPanel() {
-				this.$store.dispatch('ui/openModal', VERSIONS_MODAL_KEY);
-			},
-			async stopExecution () {
-				const executionId = this.$store.getters.activeExecutionId;
-				if (executionId === null) {
-					return;
-				}
+	becomeTemplateCreatorStore.startMonitoringCta();
 
-				try {
-					this.stopExecutionInProgress = true;
-					await this.restApi().stopCurrentExecution(executionId);
-					this.$showMessage({
-						title: 'Execution stopped',
-						message: `The execution with the id "${executionId}" got stopped!`,
-						type: 'success',
-					});
-				} catch (error) {
-					this.$showError(error, 'Problem stopping execution', 'There was a problem stopping the execuction:');
-				}
-				this.stopExecutionInProgress = false;
-			},
-			async openWorkflow (workflowId: string) {
-				// Change to other workflow
-				this.$router.push({
-					name: 'NodeViewExisting',
-					params: { name: workflowId },
-				});
+	await nextTick(onResizeEnd);
+});
 
-				this.$store.commit('ui/closeTopModal');
-			},
-			async handleFileImport () {
-				const reader = new FileReader();
+onBeforeUnmount(() => {
+	becomeTemplateCreatorStore.stopMonitoringCta();
+	window.removeEventListener('resize', onResize);
+});
 
-				reader.onload = (event: ProgressEvent) => {
-					const data = (event.target as FileReader).result;
-
-					let worflowData: IWorkflowDataUpdate;
-					try {
-						worflowData = JSON.parse(data as string);
-					} catch (error) {
-						this.$showMessage({
-							title: 'Could not import file',
-							message: `The file does not contain valid JSON data.`,
-							type: 'error',
-						});
-						return;
-					}
-
-					this.$telemetry.track('User imported workflow', { source: 'file', workflow_id: this.$store.getters.workflowId });
-					this.$root.$emit('importWorkflowData', { data: worflowData });
-				};
-
-				const input = this.$refs.importFile as HTMLInputElement;
-				if (input !== null && input.files !== null && input.files.length !== 0) {
-					reader.readAsText(input!.files[0]!);
-				}
-			},
-			async handleSelect (key: string, keyPath: string) {
-				if (key === 'workflow-open') {
-					this.$store.dispatch('ui/openModal', WORKFLOW_OPEN_MODAL_KEY);
-				} else if (key === 'workflow-import-file') {
-					(this.$refs.importFile as HTMLInputElement).click();
-				} else if (key === 'workflow-import-url') {
-					try {
-						const promptResponse = await this.$prompt(`Workflow URL:`, 'Import Workflow from URL:', {
-							confirmButtonText: 'Import',
-							cancelButtonText: 'Cancel',
-							inputErrorMessage: 'Invalid URL',
-							inputPattern: /^http[s]?:\/\/.*\.json$/i,
-						}) as MessageBoxInputData;
-
-						this.$root.$emit('importWorkflowUrl', { url: promptResponse.value });
-					} catch (e) {}
-				} else if (key === 'workflow-delete') {
-					const deleteConfirmed = await this.confirmMessage(`Are you sure that you want to delete the workflow "${this.workflowName}"?`, 'Delete Workflow?', 'warning', 'Yes, delete!');
-
-					if (deleteConfirmed === false) {
-						return;
-					}
-
-					try {
-						await this.restApi().deleteWorkflow(this.currentWorkflow);
-					} catch (error) {
-						this.$showError(error, 'Problem deleting the workflow', 'There was a problem deleting the workflow:');
-						return;
-					}
-					this.$store.commit('setStateDirty', false);
-					// Reset tab title since workflow is deleted.
-					this.$titleReset();
-					this.$showMessage({
-						title: 'Workflow was deleted',
-						message: `The workflow "${this.workflowName}" was deleted!`,
-						type: 'success',
-					});
-
-					this.$router.push({ name: 'NodeViewNew' });
-				} else if (key === 'workflow-download') {
-					const workflowData = await this.getWorkflowDataToSave();
-
-					const {tags, ...data} = workflowData;
-					if (data.id && typeof data.id === 'string') {
-						data.id = parseInt(data.id, 10);
-					}
-					const blob = new Blob([JSON.stringify(data, null, 2)], {
-						type: 'application/json;charset=utf-8',
-					});
-
-					let workflowName = this.$store.getters.workflowName || 'unsaved_workflow';
-
-					workflowName = workflowName.replace(/[^a-z0-9]/gi, '_');
-
-					this.$telemetry.track('User exported workflow', { workflow_id: workflowData.id });
-
-					saveAs(blob, workflowName + '.json');
-				} else if (key === 'workflow-save') {
-					this.saveCurrentWorkflow(undefined);
-				} else if (key === 'workflow-duplicate') {
-					this.$store.dispatch('ui/openModal', DUPLICATE_MODAL_KEY);
-				} else if (key === 'help-about') {
-					this.aboutDialogVisible = true;
-					this.trackHelpItemClick('about');
-				} else if (key === 'workflow-settings') {
-					this.$store.dispatch('ui/openModal', WORKFLOW_SETTINGS_MODAL_KEY);
-				} else if (key === 'workflow-new') {
-					const result = this.$store.getters.getStateIsDirty;
-					if(result) {
-						const importConfirm = await this.confirmMessage(`When you switch workflows your current workflow changes will be lost.`, 'Save your Changes?', 'warning', 'Yes, switch workflows and forget changes');
-						if (importConfirm === true) {
-							this.$store.commit('setStateDirty', false);
-							if (this.$router.currentRoute.name === 'NodeViewNew') {
-								this.$root.$emit('newWorkflow');
-							} else {
-								this.$router.push({ name: 'NodeViewNew' });
-							}
-
-							this.$showMessage({
-								title: 'Workflow created',
-								message: 'A new workflow got created!',
-								type: 'success',
-							});
-						}
-					} else {
-						if (this.$router.currentRoute.name !== 'NodeViewNew') {
-							this.$router.push({ name: 'NodeViewNew' });
-						}
-
-						this.$showMessage({
-							title: 'Workflow created',
-							message: 'A new workflow got created!',
-							type: 'success',
-						});
-					}
-					this.$titleReset();
-				} else if (key === 'credentials-open') {
-					this.$store.dispatch('ui/openModal', CREDENTIAL_LIST_MODAL_KEY);
-				} else if (key === 'credentials-new') {
-					this.$store.dispatch('ui/openModal', CREDENTIAL_SELECT_MODAL_KEY);
-				} else if (key === 'execution-open-workflow') {
-					if (this.workflowExecution !== null) {
-						this.openWorkflow(this.workflowExecution.workflowId as string);
-					}
-				} else if (key === 'executions') {
-					this.executionsListDialogVisible = true;
-				}
-			},
-		},
+const trackTemplatesClick = () => {
+	telemetry.track('User clicked on templates', {
+		role: usersStore.currentUserCloudInfo?.role,
+		active_workflow_count: workflowsStore.activeWorkflows.length,
 	});
+};
+
+const trackHelpItemClick = (itemType: string) => {
+	telemetry.track('User clicked help resource', {
+		type: itemType,
+		workflow_id: workflowsStore.workflowId,
+	});
+};
+
+const onUserActionToggle = (action: string) => {
+	switch (action) {
+		case 'logout':
+			onLogout();
+			break;
+		case 'settings':
+			void router.push({ name: VIEWS.SETTINGS });
+			break;
+		default:
+			break;
+	}
+};
+
+const onLogout = () => {
+	void router.push({ name: VIEWS.SIGNOUT });
+};
+
+const toggleCollapse = () => {
+	uiStore.toggleSidebarMenuCollapse();
+	// When expanding, delay showing some element to ensure smooth animation
+	if (!isCollapsed.value) {
+		setTimeout(() => {
+			fullyExpanded.value = !isCollapsed.value;
+		}, 300);
+	} else {
+		fullyExpanded.value = !isCollapsed.value;
+	}
+};
+
+const openUpdatesPanel = () => {
+	uiStore.openModal(VERSIONS_MODAL_KEY);
+};
+
+const handleSelect = (key: string) => {
+	switch (key) {
+		case 'templates':
+			if (settingsStore.isTemplatesEnabled && !templatesStore.hasCustomTemplatesHost) {
+				trackTemplatesClick();
+			}
+			break;
+		case 'about': {
+			trackHelpItemClick('about');
+			uiStore.openModal(ABOUT_MODAL_KEY);
+			break;
+		}
+		case 'cloud-admin': {
+			void pageRedirectionHelper.goToDashboard();
+			break;
+		}
+		case 'quickstart':
+		case 'docs':
+		case 'forum':
+		case 'examples': {
+			trackHelpItemClick(key);
+			break;
+		}
+		default:
+			break;
+	}
+};
+
+function onResize() {
+	void callDebounced(onResizeEnd, { debounceTime: 250 });
+}
+
+async function onResizeEnd() {
+	if (window.outerWidth < 900) {
+		uiStore.sidebarMenuCollapsed = true;
+	} else {
+		uiStore.sidebarMenuCollapsed = uiStore.sidebarMenuCollapsedPreference;
+	}
+
+	void nextTick(() => {
+		fullyExpanded.value = !isCollapsed.value;
+	});
+}
+
+const {
+	menu,
+	handleSelect: handleMenuSelect,
+	createProjectAppendSlotName,
+	createWorkflowsAppendSlotName,
+	createCredentialsAppendSlotName,
+	projectsLimitReachedMessage,
+	upgradeLabel,
+} = useGlobalEntityCreation();
+onClickOutside(createBtn as Ref<VueInstance>, () => {
+	createBtn.value?.close();
+});
 </script>
 
-<style lang="scss">
-.sidebar-popper{
-	.el-menu-item {
-		font-size: 0.9em;
-		height: 35px;
-		line-height: 35px;
-		color: $--custom-dialog-text-color;
-		--menu-item-hover-fill: #fff0ef;
+<template>
+	<div
+		id="side-menu"
+		:class="{
+			['side-menu']: true,
+			[$style.sideMenu]: true,
+			[$style.sideMenuCollapsed]: isCollapsed,
+		}"
+	>
+		<div
+			id="collapse-change-button"
+			:class="['clickable', $style.sideMenuCollapseButton]"
+			@click="toggleCollapse"
+		>
+			<N8nIcon v-if="isCollapsed" icon="chevron-right" size="xsmall" class="ml-5xs" />
+			<N8nIcon v-else icon="chevron-left" size="xsmall" class="mr-5xs" />
+		</div>
+		<div :class="$style.logo">
+			<Logo
+				location="sidebar"
+				:collapsed="isCollapsed"
+				:release-channel="settingsStore.settings.releaseChannel"
+			>
+				<N8nTooltip
+					v-if="sourceControlStore.preferences.branchReadOnly && !isCollapsed"
+					placement="bottom"
+				>
+					<template #content>
+						<i18n-t keypath="readOnlyEnv.tooltip">
+							<template #link>
+								<N8nLink
+									to="https://docs.n8n.io/source-control-environments/setup/#step-4-connect-n8n-and-configure-your-instance"
+									size="small"
+								>
+									{{ i18n.baseText('readOnlyEnv.tooltip.link') }}
+								</N8nLink>
+							</template>
+						</i18n-t>
+					</template>
+					<N8nIcon icon="lock" size="xsmall" :class="$style.readOnlyEnvironmentIcon" />
+				</N8nTooltip>
+			</Logo>
+			<N8nNavigationDropdown
+				ref="createBtn"
+				data-test-id="universal-add"
+				:menu="menu"
+				@select="handleMenuSelect"
+			>
+				<N8nIconButton icon="plus" type="secondary" outline />
+				<template #[createWorkflowsAppendSlotName]>
+					<N8nTooltip
+						v-if="sourceControlStore.preferences.branchReadOnly"
+						placement="right"
+						:content="i18n.baseText('readOnlyEnv.cantAdd.workflow')"
+					>
+						<N8nIcon style="margin-left: auto; margin-right: 5px" icon="lock" size="xsmall" />
+					</N8nTooltip>
+				</template>
+				<template #[createCredentialsAppendSlotName]>
+					<N8nTooltip
+						v-if="sourceControlStore.preferences.branchReadOnly"
+						placement="right"
+						:content="i18n.baseText('readOnlyEnv.cantAdd.credential')"
+					>
+						<N8nIcon style="margin-left: auto; margin-right: 5px" icon="lock" size="xsmall" />
+					</N8nTooltip>
+				</template>
+				<template #[createProjectAppendSlotName]="{ item }">
+					<N8nTooltip v-if="item.disabled" placement="right" :content="projectsLimitReachedMessage">
+						<N8nButton
+							:size="'mini'"
+							style="margin-left: auto"
+							type="tertiary"
+							@click="handleMenuSelect(item.id)"
+						>
+							{{ upgradeLabel }}
+						</N8nButton>
+					</N8nTooltip>
+				</template>
+			</N8nNavigationDropdown>
+		</div>
+		<N8nMenu :items="mainMenuItems" :collapsed="isCollapsed" @select="handleSelect">
+			<template #header>
+				<ProjectNavigation
+					:collapsed="isCollapsed"
+					:plan-name="cloudPlanStore.currentPlanData?.displayName"
+				/>
+			</template>
 
-		.item-title {
-			position: absolute;
-			left: 55px;
-		}
+			<template #beforeLowerMenu>
+				<BecomeTemplateCreatorCta v-if="fullyExpanded && !userIsTrialing" />
+			</template>
+			<template #menuSuffix>
+				<div>
+					<div
+						v-if="hasVersionUpdates"
+						data-test-id="version-updates-panel-button"
+						:class="$style.updates"
+						@click="openUpdatesPanel"
+					>
+						<div :class="$style.giftContainer">
+							<GiftNotificationIcon />
+						</div>
+						<N8nText
+							:class="{ ['ml-xs']: true, [$style.expanded]: fullyExpanded }"
+							color="text-base"
+						>
+							{{ nextVersions.length > 99 ? '99+' : nextVersions.length }} update{{
+								nextVersions.length > 1 ? 's' : ''
+							}}
+						</N8nText>
+					</div>
+					<MainSidebarSourceControl :is-collapsed="isCollapsed" />
+				</div>
+			</template>
+			<template v-if="showUserArea" #footer>
+				<div ref="user" :class="$style.userArea">
+					<div class="ml-3xs" data-test-id="main-sidebar-user-menu">
+						<!-- This dropdown is only enabled when sidebar is collapsed -->
+						<ElDropdown placement="right-end" trigger="click" @command="onUserActionToggle">
+							<div :class="{ [$style.avatar]: true, ['clickable']: isCollapsed }">
+								<N8nAvatar
+									:first-name="usersStore.currentUser?.firstName"
+									:last-name="usersStore.currentUser?.lastName"
+									size="small"
+								/>
+							</div>
+							<template v-if="isCollapsed" #dropdown>
+								<ElDropdownMenu>
+									<ElDropdownItem command="settings">
+										{{ i18n.baseText('settings') }}
+									</ElDropdownItem>
+									<ElDropdownItem command="logout">
+										{{ i18n.baseText('auth.signout') }}
+									</ElDropdownItem>
+								</ElDropdownMenu>
+							</template>
+						</ElDropdown>
+					</div>
+					<div
+						:class="{ ['ml-2xs']: true, [$style.userName]: true, [$style.expanded]: fullyExpanded }"
+					>
+						<N8nText size="small" :bold="true" color="text-dark">{{
+							usersStore.currentUser?.fullName
+						}}</N8nText>
+					</div>
+					<div :class="{ [$style.userActions]: true, [$style.expanded]: fullyExpanded }">
+						<N8nActionDropdown
+							:items="userMenuItems"
+							placement="top-start"
+							data-test-id="user-menu"
+							@select="onUserActionToggle"
+						/>
+					</div>
+				</div>
+			</template>
+		</N8nMenu>
+	</div>
+</template>
 
-		.svg-inline--fa {
-			position: relative;
-			right: -3px;
-		}
-	}
-}
-
-#side-menu {
-	// Menu
-	.el-menu--vertical,
-	.el-menu {
-		border: none;
-		font-size: 14px;
-		--menu-item-hover-fill: #fff0ef;
-
-		.el-menu--collapse {
-			width: 75px;
-		}
-
-		.el-menu--popup,
-		.el-menu--inline {
-			font-size: 0.9em;
-			li.el-menu-item {
-				height: 35px;
-				line-height: 35px;
-				color: $--custom-dialog-text-color;
-			}
-		}
-
-		.el-menu-item,
-		.el-submenu__title {
-			color: $--color-primary;
-			font-size: 1.2em;
-			.el-submenu__icon-arrow {
-				color: $--color-primary;
-				font-weight: 800;
-				font-size: 1em;
-			}
-			.svg-inline--fa {
-				position: relative;
-				right: -3px;
-			}
-			.item-title {
-				position: absolute;
-				left: 73px;
-			}
-			.item-title-root {
-				position: absolute;
-				left: 60px;
-				top: 1px;
-			}
-		}
-
-	}
-
-	.el-menu-item {
-		a {
-			color: #666;
-
-			&.primary-item {
-				color: $--color-primary;
-				vertical-align: baseline;
-			}
-		}
-
-		&.logo-item {
-			background-color: $--color-primary !important;
-			height: $--header-height;
-			line-height: $--header-height;
-			* {
-				vertical-align: middle;
-			}
-
-
-			.icon {
-				position: relative;
-				height: 23px;
-				left: -10px;
-				top: -2px;
-			}
-		}
-	}
-}
-
-.about-icon {
-	margin-left: 5px;
-}
-
-#collapse-change-button {
-	position: absolute;
-	z-index: 10;
-	top: 55px;
-	left: 25px;
-	text-align: right;
-	line-height: 24px;
-	height: 20px;
-	width: 20px;
-	background-color: #fff;
-	border: none;
-	border-radius: 15px;
-
-	-webkit-transition-duration: 0.5s;
-	-moz-transition-duration: 0.5s;
-	-o-transition-duration: 0.5s;
-	transition-duration: 0.5s;
-
-	-webkit-transition-property: -webkit-transform;
-	-moz-transition-property: -moz-transform;
-	-o-transition-property: -o-transform;
-	transition-property: transform;
-
-	overflow: hidden;
-
-	.icon {
-		position: relative;
-		left: -5px;
-		top: -2px;
-	}
-}
-#collapse-change-button:hover {
-	transform: scale(1.1);
-}
-
-a.logo {
-	text-decoration: none;
-}
-
-.logo-text {
+<style lang="scss" module>
+.sideMenu {
 	position: relative;
-	top: -3px;
-	left: 5px;
-	font-weight: bold;
-	color: #fff;
-	text-decoration: none;
-}
-
-.expanded #collapse-change-button {
-	-webkit-transform: translateX(60px) rotate(180deg);
-	-moz-transform: translateX(60px) rotate(180deg);
-	-o-transform: translateX(60px) rotate(180deg);
-	transform: translateX(60px) rotate(180deg);
-}
-
-#side-menu {
-	position: fixed;
 	height: 100%;
+	border-right: var(--border-width-base) var(--border-style-base) var(--color-foreground-base);
+	transition: width 150ms ease-in-out;
+	width: $sidebar-expanded-width;
+	padding-top: 54px;
+	background-color: var(--menu-background, var(--color-background-xlight));
 
-	.el-menu {
-		height: 100%;
-	}
-}
-
-.side-menu-wrapper {
-	height: 100%;
-	width: $--sidebar-width;
-
-	&.expanded {
-		width: $--sidebar-expanded-width;
-	}
-
-	ul {
+	.logo {
+		position: absolute;
+		top: 0;
+		left: 0;
+		width: 100%;
 		display: flex;
-		flex-direction: column;
+		align-items: center;
+		padding: var(--spacing-xs);
+		justify-content: space-between;
+
+		img {
+			position: relative;
+			left: 1px;
+			height: 20px;
+		}
+	}
+
+	&.sideMenuCollapsed {
+		width: $sidebar-width;
+		padding-top: 100px;
+
+		.logo {
+			flex-direction: column;
+			gap: 12px;
+		}
 	}
 }
 
-.footer-menu-items {
+.sideMenuCollapseButton {
+	position: absolute;
+	right: -10px;
+	top: 50%;
+	z-index: 999;
 	display: flex;
-	flex-grow: 1;
-	flex-direction: column;
-	justify-content: flex-end;
-	padding-bottom: 32px;
+	justify-content: center;
+	align-items: center;
+	color: var(--color-text-base);
+	background-color: var(--color-foreground-xlight);
+	width: 20px;
+	height: 20px;
+	border: var(--border-width-base) var(--border-style-base) var(--color-foreground-base);
+	border-radius: 50%;
+
+	&:hover {
+		color: var(--color-primary-shade-1);
+	}
 }
 
-.el-menu-item.updates {
-	color: $--sidebar-inactive-color !important;
-	.item-title-root {
-		font-size: 13px;
-		top: 0 !important;
+.updates {
+	display: flex;
+	align-items: center;
+	cursor: pointer;
+	padding: var(--spacing-2xs) var(--spacing-l);
+	margin: var(--spacing-2xs) 0 0;
+
+	svg {
+		color: var(--color-text-base) !important;
+	}
+	span {
+		display: none;
+		&.expanded {
+			display: initial;
+		}
 	}
 
 	&:hover {
-		color: $--sidebar-active-color;
-	}
-
-	.gift-container {
-		display: flex;
-		justify-content: flex-start;
-		align-items: center;
-		height: 100%;
-		width: 100%;
+		&,
+		& svg {
+			color: var(--color-text-dark) !important;
+		}
 	}
 }
 
+.userArea {
+	display: flex;
+	padding: var(--spacing-xs);
+	align-items: center;
+	height: 60px;
+	border-top: var(--border-width-base) var(--border-style-base) var(--color-foreground-base);
+
+	.userName {
+		display: none;
+		overflow: hidden;
+		width: 100px;
+		white-space: nowrap;
+		text-overflow: ellipsis;
+
+		&.expanded {
+			display: initial;
+		}
+
+		span {
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+	}
+
+	.userActions {
+		display: none;
+
+		&.expanded {
+			display: initial;
+		}
+	}
+}
+
+@media screen and (max-height: 470px) {
+	:global(#help) {
+		display: none;
+	}
+}
+
+.readOnlyEnvironmentIcon {
+	display: inline-block;
+	color: white;
+	background-color: var(--color-warning);
+	align-self: center;
+	padding: 2px;
+	border-radius: var(--border-radius-small);
+	margin: 5px 5px 0;
+}
 </style>

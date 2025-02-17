@@ -1,17 +1,14 @@
-import {
-	INodeProperties,
-} from 'n8n-workflow';
+import type { INodeProperties } from 'n8n-workflow';
 
-export const profileOperations = [
+export const profileOperations: INodeProperties[] = [
 	{
 		displayName: 'Operation',
 		name: 'operation',
 		type: 'options',
+		noDataExpression: true,
 		displayOptions: {
 			show: {
-				resource: [
-					'profile',
-				],
+				resource: ['profile'],
 			},
 		},
 		options: [
@@ -19,24 +16,26 @@ export const profileOperations = [
 				name: 'Create',
 				value: 'create',
 				description: 'Create a profile',
+				action: 'Create a profile',
 			},
 			{
 				name: 'Get',
 				value: 'get',
 				description: 'Retrieve a profile',
+				action: 'Get a profile',
 			},
 			{
 				name: 'Update',
 				value: 'update',
 				description: 'Update a profile',
+				action: 'Update a profile',
 			},
 		],
 		default: 'create',
-		description: 'The operation to perform.',
 	},
-] as INodeProperties[];
+];
 
-export const profileFields = [
+export const profileFields: INodeProperties[] = [
 	/* -------------------------------------------------------------------------- */
 	/*                                 profile:create                             */
 	/* -------------------------------------------------------------------------- */
@@ -48,15 +47,12 @@ export const profileFields = [
 		default: '',
 		displayOptions: {
 			show: {
-				operation: [
-					'create',
-				],
-				resource: [
-					'profile',
-				],
+				operation: ['create'],
+				resource: ['profile'],
 			},
 		},
-		description: `The LinkedIn profile URL or email ID for creating a Humantic profile. If you are sending the resume, this should be a unique string.`,
+		description:
+			'The LinkedIn profile URL or email ID for creating a Humantic profile. If you are sending the resume, this should be a unique string.',
 	},
 	{
 		displayName: 'Send Resume',
@@ -65,35 +61,25 @@ export const profileFields = [
 		default: false,
 		displayOptions: {
 			show: {
-				operation: [
-					'create',
-				],
-				resource: [
-					'profile',
-				],
+				operation: ['create'],
+				resource: ['profile'],
 			},
 		},
-		description: `Send a resume for a resume based analysis.`,
+		description: 'Whether to send a resume for a resume based analysis',
 	},
 	{
-		displayName: 'Binary Property',
+		displayName: 'Input Binary Field',
 		name: 'binaryPropertyName',
 		type: 'string',
 		default: 'data',
 		displayOptions: {
 			show: {
-				operation: [
-					'create',
-				],
-				resource: [
-					'profile',
-				],
-				sendResume: [
-					true,
-				],
+				operation: ['create'],
+				resource: ['profile'],
+				sendResume: [true],
 			},
 		},
-		description: `The resume in PDF or DOCX format.`,
+		hint: 'The name of the input binary field containing the resume in PDF or DOCX format',
 	},
 
 	/* -------------------------------------------------------------------------- */
@@ -107,30 +93,23 @@ export const profileFields = [
 		default: '',
 		displayOptions: {
 			show: {
-				operation: [
-					'get',
-				],
-				resource: [
-					'profile',
-				],
+				operation: ['get'],
+				resource: ['profile'],
 			},
 		},
-		description: `This value is the same as the User ID that was provided when the analysis was created. This could be a LinkedIn URL, email ID, or a unique string in case of resume based analysis.`,
+		description:
+			'This value is the same as the User ID that was provided when the analysis was created. This could be a LinkedIn URL, email ID, or a unique string in case of resume based analysis.',
 	},
 	{
 		displayName: 'Options',
 		name: 'options',
 		type: 'collection',
-		placeholder: 'Add Option',
+		placeholder: 'Add option',
 		default: {},
 		displayOptions: {
 			show: {
-				operation: [
-					'get',
-				],
-				resource: [
-					'profile',
-				],
+				operation: ['get'],
+				resource: ['profile'],
 			},
 		},
 		options: [
@@ -149,12 +128,11 @@ export const profileFields = [
 					},
 				],
 				default: [],
-				description: `Fetch the Humantic profile of the user for a particular persona type. Multiple persona values can be supported using comma as a delimiter.`,
+				description:
+					'Fetch the Humantic profile of the user for a particular persona type. Multiple persona values can be supported using comma as a delimiter.',
 			},
 		],
 	},
-
-
 
 	/* -------------------------------------------------------------------------- */
 	/*                                 profile:update                             */
@@ -167,15 +145,12 @@ export const profileFields = [
 		default: '',
 		displayOptions: {
 			show: {
-				operation: [
-					'update',
-				],
-				resource: [
-					'profile',
-				],
+				operation: ['update'],
+				resource: ['profile'],
 			},
 		},
-		description: `This value is the same as the User ID that was provided when the analysis was created. Currently only supported for profiles created using LinkedIn URL.`,
+		description:
+			'This value is the same as the User ID that was provided when the analysis was created. Currently only supported for profiles created using LinkedIn URL.',
 	},
 	{
 		displayName: 'Send Resume',
@@ -184,15 +159,11 @@ export const profileFields = [
 		default: false,
 		displayOptions: {
 			show: {
-				operation: [
-					'update',
-				],
-				resource: [
-					'profile',
-				],
+				operation: ['update'],
+				resource: ['profile'],
 			},
 		},
-		description: `Send a resume for a resume of the user.`,
+		description: 'Whether to send a resume for a resume of the user',
 	},
 	{
 		displayName: 'Text',
@@ -201,37 +172,25 @@ export const profileFields = [
 		default: '',
 		displayOptions: {
 			show: {
-				operation: [
-					'update',
-				],
-				resource: [
-					'profile',
-				],
-				sendResume: [
-					false,
-				],
+				operation: ['update'],
+				resource: ['profile'],
+				sendResume: [false],
 			},
 		},
-		description: `Additional text written by the user.`,
+		description: 'Additional text written by the user',
 	},
 	{
-		displayName: 'Binary Property',
+		displayName: 'Input Binary Field',
 		name: 'binaryPropertyName',
 		type: 'string',
 		default: 'data',
 		displayOptions: {
 			show: {
-				operation: [
-					'update',
-				],
-				resource: [
-					'profile',
-				],
-				sendResume: [
-					true,
-				],
+				operation: ['update'],
+				resource: ['profile'],
+				sendResume: [true],
 			},
 		},
-		description: `The resume in PDF or DOCX format.`,
+		hint: 'The name of the input binary field containing the resume in PDF or DOCX format',
 	},
-] as INodeProperties[];
+];

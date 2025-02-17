@@ -1,12 +1,28 @@
-import { INodeParameters, INodeProperties, NodeHelpers } from '../src';
+import {
+	NodeConnectionType,
+	type INodeIssues,
+	type INode,
+	type INodeParameters,
+	type INodeProperties,
+	type INodeType,
+	type INodeTypeDescription,
+} from '@/Interfaces';
+import {
+	getNodeParameters,
+	getNodeHints,
+	isSubNodeType,
+	applyDeclarativeNodeOptionParameters,
+	getParameterIssues,
+} from '@/NodeHelpers';
+import type { Workflow } from '@/Workflow';
 
-describe('Workflow', () => {
-	describe('getParameterValue', () => {
+describe('NodeHelpers', () => {
+	describe('getNodeParameters', () => {
 		const tests: Array<{
 			description: string;
 			input: {
 				nodePropertiesArray: INodeProperties[];
-				nodeValues: INodeParameters;
+				nodeValues: INodeParameters | null;
 			};
 			output: {
 				noneDisplayedFalse: {
@@ -2249,7 +2265,7 @@ describe('Workflow', () => {
 			},
 			{
 				description:
-					'One property which is dependeny on two identically named properties of which only one gets displayed with different options. No value set at all.',
+					'One property which is dependency on two identically named properties of which only one gets displayed with different options. No value set at all.',
 				input: {
 					nodePropertiesArray: [
 						{
@@ -2360,7 +2376,7 @@ describe('Workflow', () => {
 			},
 			{
 				description:
-					'One property which is dependeny on two identically named properties of which only one gets displayed with different options. No value set at all. Order reversed',
+					'One property which is dependency on two identically named properties of which only one gets displayed with different options. No value set at all. Order reversed',
 				input: {
 					nodePropertiesArray: [
 						{
@@ -2471,7 +2487,7 @@ describe('Workflow', () => {
 			},
 			{
 				description:
-					'One property which is dependeny on two identically named properties of which only one gets displayed with different options. No value set at all.',
+					'One property which is dependency on two identically named properties of which only one gets displayed with different options. No value set at all.',
 				input: {
 					nodePropertiesArray: [
 						{
@@ -3008,46 +3024,1228 @@ describe('Workflow', () => {
 					},
 				},
 			},
+			{
+				description:
+					'complex type "collection" which contains a "fixedCollection" with "multipleValues: false" that has all values set to the default values (by having it as an empty object) in combination with another value',
+				input: {
+					nodePropertiesArray: [
+						{
+							name: 'mode',
+							displayName: 'mode',
+							type: 'string',
+							default: 'mode1',
+						},
+						{
+							displayName: 'Options',
+							name: 'options',
+							placeholder: 'Add Option',
+							type: 'collection',
+							default: {},
+							options: [
+								{
+									displayName: 'Sort',
+									name: 'sort',
+									type: 'fixedCollection',
+									typeOptions: {
+										multipleValues: false,
+									},
+									default: {},
+									placeholder: 'Add Sort',
+									options: [
+										{
+											displayName: 'Sort',
+											name: 'value',
+											values: [
+												{
+													displayName: 'Descending',
+													name: 'descending',
+													type: 'boolean',
+													default: true,
+													description: 'Sort by descending order',
+												},
+												{
+													displayName: 'Order By',
+													name: 'ordering',
+													type: 'options',
+													default: 'date',
+													options: [
+														{
+															name: 'Date',
+															value: 'date',
+														},
+														{
+															name: 'Name',
+															value: 'name',
+														},
+													],
+												},
+											],
+										},
+									],
+								},
+							],
+						},
+					],
+					nodeValues: {
+						mode: 'changed',
+						options: {
+							sort: {
+								value: {},
+							},
+						},
+					},
+				},
+				output: {
+					noneDisplayedFalse: {
+						defaultsFalse: {
+							mode: 'changed',
+							options: {
+								sort: {
+									value: {},
+								},
+							},
+						},
+						defaultsTrue: {
+							mode: 'changed',
+							options: {
+								sort: {
+									value: {
+										descending: true,
+										ordering: 'date',
+									},
+								},
+							},
+						},
+					},
+					noneDisplayedTrue: {
+						defaultsFalse: {
+							mode: 'changed',
+							options: {
+								sort: {
+									value: {},
+								},
+							},
+						},
+						defaultsTrue: {
+							mode: 'changed',
+							options: {
+								sort: {
+									value: {
+										descending: true,
+										ordering: 'date',
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			{
+				description:
+					'complex type "collection" which contains a "fixedCollection" with "multipleValues: false" that has all values set to the default values (by having it as an empty object)',
+				input: {
+					nodePropertiesArray: [
+						{
+							displayName: 'Options',
+							name: 'options',
+							placeholder: 'Add Option',
+							type: 'collection',
+							default: {},
+							options: [
+								{
+									displayName: 'Sort',
+									name: 'sort',
+									type: 'fixedCollection',
+									typeOptions: {
+										multipleValues: false,
+									},
+									default: {},
+									placeholder: 'Add Sort',
+									options: [
+										{
+											displayName: 'Sort',
+											name: 'value',
+											values: [
+												{
+													displayName: 'Descending',
+													name: 'descending',
+													type: 'boolean',
+													default: true,
+													description: 'Sort by descending order',
+												},
+												{
+													displayName: 'Order By',
+													name: 'ordering',
+													type: 'options',
+													default: 'date',
+													options: [
+														{
+															name: 'Date',
+															value: 'date',
+														},
+														{
+															name: 'Name',
+															value: 'name',
+														},
+													],
+												},
+											],
+										},
+									],
+								},
+							],
+						},
+					],
+					nodeValues: {
+						options: {
+							sort: {
+								value: {},
+							},
+						},
+					},
+				},
+				output: {
+					noneDisplayedFalse: {
+						defaultsFalse: {
+							options: {
+								sort: {
+									value: {},
+								},
+							},
+						},
+						defaultsTrue: {
+							options: {
+								sort: {
+									value: {
+										descending: true,
+										ordering: 'date',
+									},
+								},
+							},
+						},
+					},
+					noneDisplayedTrue: {
+						defaultsFalse: {
+							options: {
+								sort: {
+									value: {},
+								},
+							},
+						},
+						defaultsTrue: {
+							options: {
+								sort: {
+									value: {
+										descending: true,
+										ordering: 'date',
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			{
+				description:
+					'complex type "collection" which contains a "fixedCollection" with "multipleValues: false" that has all values set to the default values (by having each value set)',
+				input: {
+					nodePropertiesArray: [
+						{
+							displayName: 'Options',
+							name: 'options',
+							placeholder: 'Add Option',
+							type: 'collection',
+							default: {},
+							options: [
+								{
+									displayName: 'Sort',
+									name: 'sort',
+									type: 'fixedCollection',
+									typeOptions: {
+										multipleValues: false,
+									},
+									default: {},
+									options: [
+										{
+											displayName: 'Sort',
+											name: 'value',
+											values: [
+												{
+													displayName: 'Descending',
+													name: 'descending',
+													type: 'boolean',
+													default: true,
+												},
+												{
+													displayName: 'Order By',
+													name: 'ordering',
+													type: 'options',
+													default: 'date',
+													options: [
+														{
+															name: 'Date',
+															value: 'date',
+														},
+														{
+															name: 'Name',
+															value: 'name',
+														},
+													],
+												},
+											],
+										},
+									],
+								},
+							],
+						},
+					],
+					nodeValues: {
+						options: {
+							sort: {
+								value: {
+									descending: true,
+									ordering: 'date',
+								},
+							},
+						},
+					},
+				},
+				output: {
+					noneDisplayedFalse: {
+						defaultsFalse: {
+							options: {
+								sort: {
+									value: {},
+								},
+							},
+						},
+						defaultsTrue: {
+							options: {
+								sort: {
+									value: {
+										descending: true,
+										ordering: 'date',
+									},
+								},
+							},
+						},
+					},
+					noneDisplayedTrue: {
+						defaultsFalse: {
+							options: {
+								sort: {
+									value: {},
+								},
+							},
+						},
+						defaultsTrue: {
+							options: {
+								sort: {
+									value: {
+										descending: true,
+										ordering: 'date',
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			{
+				description: 'nodeValues is null (for example when resolving expression fails)',
+				input: {
+					nodePropertiesArray: [
+						{
+							displayName: 'Custom Properties',
+							name: 'customPropertiesUi',
+							placeholder: 'Add Custom Property',
+							type: 'fixedCollection',
+							typeOptions: {
+								multipleValues: true,
+							},
+							default: {},
+							options: [
+								{
+									name: 'customPropertiesValues',
+									displayName: 'Custom Property',
+									values: [
+										{
+											displayName: 'Property Name or ID',
+											name: 'property',
+											type: 'options',
+											typeOptions: {
+												loadOptionsMethod: 'getDealCustomProperties',
+											},
+											default: '',
+											description:
+												'Name of the property. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code-examples/expressions/">expression</a>.',
+										},
+										{
+											displayName: 'Value',
+											name: 'value',
+											type: 'string',
+											default: '',
+											required: true,
+											description: 'Value of the property',
+										},
+									],
+								},
+							],
+						},
+					],
+					nodeValues: null,
+				},
+				output: {
+					noneDisplayedFalse: {
+						defaultsFalse: {},
+						defaultsTrue: {},
+					},
+					noneDisplayedTrue: {
+						defaultsFalse: {},
+						defaultsTrue: {},
+					},
+				},
+			},
 		];
 
 		for (const testData of tests) {
 			test(testData.description, () => {
 				// returnDefaults: false | returnNoneDisplayed: false
-				let result = NodeHelpers.getNodeParameters(
+				let result = getNodeParameters(
 					testData.input.nodePropertiesArray,
 					testData.input.nodeValues,
 					false,
 					false,
+					null,
 				);
 				expect(result).toEqual(testData.output.noneDisplayedFalse.defaultsFalse);
 
 				// returnDefaults: true | returnNoneDisplayed: false
-				result = NodeHelpers.getNodeParameters(
+				result = getNodeParameters(
 					testData.input.nodePropertiesArray,
 					testData.input.nodeValues,
 					true,
 					false,
+					null,
 				);
 				expect(result).toEqual(testData.output.noneDisplayedFalse.defaultsTrue);
 
 				// returnDefaults: false | returnNoneDisplayed: true
-				result = NodeHelpers.getNodeParameters(
+				result = getNodeParameters(
 					testData.input.nodePropertiesArray,
 					testData.input.nodeValues,
 					false,
 					true,
+					null,
 				);
 				expect(result).toEqual(testData.output.noneDisplayedTrue.defaultsFalse);
 
 				// returnDefaults: true | returnNoneDisplayed: true
-				result = NodeHelpers.getNodeParameters(
+				result = getNodeParameters(
 					testData.input.nodePropertiesArray,
 					testData.input.nodeValues,
 					true,
 					true,
+					null,
 				);
 				expect(result).toEqual(testData.output.noneDisplayedTrue.defaultsTrue);
 			});
 		}
+	});
+
+	describe('getNodeHints', () => {
+		//TODO: Add more tests here when hints are added to some node types
+		test('should return node hints if present in node type', () => {
+			const testType = {
+				hints: [
+					{
+						message: 'TEST HINT',
+					},
+				],
+			} as INodeTypeDescription;
+
+			const workflow = {} as unknown as Workflow;
+
+			const node: INode = {
+				name: 'Test Node Hints',
+			} as INode;
+			const nodeType = testType;
+
+			const hints = getNodeHints(workflow, node, nodeType);
+
+			expect(hints).toHaveLength(1);
+			expect(hints[0].message).toEqual('TEST HINT');
+		});
+		test('should not include hint if displayCondition is false', () => {
+			const testType = {
+				hints: [
+					{
+						message: 'TEST HINT',
+						displayCondition: 'FALSE DISPLAY CONDITION EXPESSION',
+					},
+				],
+			} as INodeTypeDescription;
+
+			const workflow = {
+				expression: {
+					getSimpleParameterValue(
+						_node: string,
+						_parameter: string,
+						_mode: string,
+						_additionalData = {},
+					) {
+						return false;
+					},
+				},
+			} as unknown as Workflow;
+
+			const node: INode = {
+				name: 'Test Node Hints',
+			} as INode;
+			const nodeType = testType;
+
+			const hints = getNodeHints(workflow, node, nodeType);
+
+			expect(hints).toHaveLength(0);
+		});
+		test('should include hint if displayCondition is true', () => {
+			const testType = {
+				hints: [
+					{
+						message: 'TEST HINT',
+						displayCondition: 'TRUE DISPLAY CONDITION EXPESSION',
+					},
+				],
+			} as INodeTypeDescription;
+
+			const workflow = {
+				expression: {
+					getSimpleParameterValue(
+						_node: string,
+						_parameter: string,
+						_mode: string,
+						_additionalData = {},
+					) {
+						return true;
+					},
+				},
+			} as unknown as Workflow;
+
+			const node: INode = {
+				name: 'Test Node Hints',
+			} as INode;
+			const nodeType = testType;
+
+			const hints = getNodeHints(workflow, node, nodeType);
+
+			expect(hints).toHaveLength(1);
+		});
+	});
+
+	describe('isSubNodeType', () => {
+		const tests: Array<[boolean, Pick<INodeTypeDescription, 'outputs'> | null]> = [
+			[false, null],
+			[false, { outputs: '={{random_expression}}' }],
+			[false, { outputs: [] }],
+			[false, { outputs: [NodeConnectionType.Main] }],
+			[true, { outputs: [NodeConnectionType.AiAgent] }],
+			[true, { outputs: [NodeConnectionType.Main, NodeConnectionType.AiAgent] }],
+		];
+		test.each(tests)('should return %p for %o', (expected, nodeType) => {
+			expect(isSubNodeType(nodeType)).toBe(expected);
+		});
+	});
+
+	describe('applyDeclarativeNodeOptionParameters', () => {
+		test.each([
+			[
+				'node with execute method',
+				{
+					execute: jest.fn(),
+					description: {
+						properties: [],
+					},
+				},
+			],
+			[
+				'node with trigger method',
+				{
+					trigger: jest.fn(),
+					description: {
+						properties: [],
+					},
+				},
+			],
+			[
+				'node with webhook method',
+				{
+					webhook: jest.fn(),
+					description: {
+						properties: [],
+					},
+				},
+			],
+			[
+				'a polling node-type',
+				{
+					description: {
+						polling: true,
+						properties: [],
+					},
+				},
+			],
+			[
+				'a node-type with a non-main output',
+				{
+					description: {
+						outputs: ['main', 'ai_agent'],
+						properties: [],
+					},
+				},
+			],
+		])('should not modify properties on node with %s method', (_, nodeTypeName) => {
+			const nodeType = nodeTypeName as unknown as INodeType;
+			applyDeclarativeNodeOptionParameters(nodeType);
+			expect(nodeType.description.properties).toEqual([]);
+		});
+	});
+
+	describe('getParameterIssues', () => {
+		const tests: Array<{
+			description: string;
+			input: {
+				nodeProperties: INodeProperties;
+				nodeValues: INodeParameters;
+				path: string;
+				node: INode;
+			};
+			output: INodeIssues;
+		}> = [
+			{
+				description:
+					'Fixed collection::Should not return issues if minimum or maximum field count is not set',
+				input: {
+					nodeProperties: {
+						displayName: 'Workflow Inputs',
+						name: 'workflowInputs',
+						placeholder: 'Add Field',
+						type: 'fixedCollection',
+						description:
+							'Define expected input fields. If no inputs are provided, all data from the calling workflow will be passed through.',
+						typeOptions: {
+							multipleValues: true,
+							sortable: true,
+						},
+						displayOptions: {
+							show: {
+								'@version': [
+									{
+										_cnd: {
+											gte: 1.1,
+										},
+									},
+								],
+								inputSource: ['workflowInputs'],
+							},
+						},
+						default: {},
+						options: [
+							{
+								name: 'values',
+								displayName: 'Values',
+								values: [
+									{
+										displayName: 'Name',
+										name: 'name',
+										type: 'string',
+										default: '',
+										placeholder: 'e.g. fieldName',
+										description: 'Name of the field',
+										noDataExpression: true,
+									},
+									{
+										displayName: 'Type',
+										name: 'type',
+										type: 'options',
+										description: 'The field value type',
+										options: [
+											{
+												name: 'Allow Any Type',
+												value: 'any',
+											},
+											{
+												name: 'String',
+												value: 'string',
+											},
+											{
+												name: 'Number',
+												value: 'number',
+											},
+											{
+												name: 'Boolean',
+												value: 'boolean',
+											},
+											{
+												name: 'Array',
+												value: 'array',
+											},
+											{
+												name: 'Object',
+												value: 'object',
+											},
+										],
+										default: 'string',
+										noDataExpression: true,
+									},
+								],
+							},
+						],
+					},
+					nodeValues: {
+						events: 'worklfow_call',
+						inputSource: 'workflowInputs',
+						workflowInputs: {},
+						inputOptions: {},
+					},
+					path: '',
+					node: {
+						parameters: {
+							events: 'worklfow_call',
+							inputSource: 'workflowInputs',
+							workflowInputs: {},
+							inputOptions: {},
+						},
+						type: 'n8n-nodes-base.executeWorkflowTrigger',
+						typeVersion: 1.1,
+						position: [-140, -20],
+						id: '9abdbdac-5f32-4876-b4d5-895d8ca4cb00',
+						name: 'Test Node',
+					} as INode,
+				},
+				output: {},
+			},
+			{
+				description:
+					'Fixed collection::Should not return issues if field count is within the specified range',
+				input: {
+					nodeProperties: {
+						displayName: 'Workflow Inputs',
+						name: 'workflowInputs',
+						placeholder: 'Add Field',
+						type: 'fixedCollection',
+						description:
+							'Define expected input fields. If no inputs are provided, all data from the calling workflow will be passed through.',
+						typeOptions: {
+							multipleValues: true,
+							sortable: true,
+							minRequiredFields: 1,
+							maxAllowedFields: 3,
+						},
+						displayOptions: {
+							show: {
+								'@version': [
+									{
+										_cnd: {
+											gte: 1.1,
+										},
+									},
+								],
+								inputSource: ['workflowInputs'],
+							},
+						},
+						default: {},
+						options: [
+							{
+								name: 'values',
+								displayName: 'Values',
+								values: [
+									{
+										displayName: 'Name',
+										name: 'name',
+										type: 'string',
+										default: '',
+										placeholder: 'e.g. fieldName',
+										description: 'Name of the field',
+										noDataExpression: true,
+									},
+									{
+										displayName: 'Type',
+										name: 'type',
+										type: 'options',
+										description: 'The field value type',
+										options: [
+											{
+												name: 'Allow Any Type',
+												value: 'any',
+											},
+											{
+												name: 'String',
+												value: 'string',
+											},
+											{
+												name: 'Number',
+												value: 'number',
+											},
+											{
+												name: 'Boolean',
+												value: 'boolean',
+											},
+											{
+												name: 'Array',
+												value: 'array',
+											},
+											{
+												name: 'Object',
+												value: 'object',
+											},
+										],
+										default: 'string',
+										noDataExpression: true,
+									},
+								],
+							},
+						],
+					},
+					nodeValues: {
+						events: 'worklfow_call',
+						inputSource: 'workflowInputs',
+						workflowInputs: {
+							values: [
+								{
+									name: 'field1',
+									type: 'string',
+								},
+								{
+									name: 'field2',
+									type: 'string',
+								},
+							],
+						},
+						inputOptions: {},
+					},
+					path: '',
+					node: {
+						parameters: {
+							events: 'worklfow_call',
+							inputSource: 'workflowInputs',
+							workflowInputs: {},
+							inputOptions: {},
+						},
+						type: 'n8n-nodes-base.executeWorkflowTrigger',
+						typeVersion: 1.1,
+						position: [-140, -20],
+						id: '9abdbdac-5f32-4876-b4d5-895d8ca4cb00',
+						name: 'Test Node',
+					} as INode,
+				},
+				output: {},
+			},
+			{
+				description:
+					'Fixed collection::Should return an issue if field count is lower than minimum specified',
+				input: {
+					nodeProperties: {
+						displayName: 'Workflow Inputs',
+						name: 'workflowInputs',
+						placeholder: 'Add Field',
+						type: 'fixedCollection',
+						description:
+							'Define expected input fields. If no inputs are provided, all data from the calling workflow will be passed through.',
+						typeOptions: {
+							multipleValues: true,
+							sortable: true,
+							minRequiredFields: 1,
+						},
+						displayOptions: {
+							show: {
+								'@version': [
+									{
+										_cnd: {
+											gte: 1.1,
+										},
+									},
+								],
+								inputSource: ['workflowInputs'],
+							},
+						},
+						default: {},
+						options: [
+							{
+								name: 'values',
+								displayName: 'Values',
+								values: [
+									{
+										displayName: 'Name',
+										name: 'name',
+										type: 'string',
+										default: '',
+										placeholder: 'e.g. fieldName',
+										description: 'Name of the field',
+										noDataExpression: true,
+									},
+									{
+										displayName: 'Type',
+										name: 'type',
+										type: 'options',
+										description: 'The field value type',
+										options: [
+											{
+												name: 'Allow Any Type',
+												value: 'any',
+											},
+											{
+												name: 'String',
+												value: 'string',
+											},
+											{
+												name: 'Number',
+												value: 'number',
+											},
+											{
+												name: 'Boolean',
+												value: 'boolean',
+											},
+											{
+												name: 'Array',
+												value: 'array',
+											},
+											{
+												name: 'Object',
+												value: 'object',
+											},
+										],
+										default: 'string',
+										noDataExpression: true,
+									},
+								],
+							},
+						],
+					},
+					nodeValues: {
+						events: 'worklfow_call',
+						inputSource: 'workflowInputs',
+						workflowInputs: {},
+						inputOptions: {},
+					},
+					path: '',
+					node: {
+						parameters: {
+							events: 'worklfow_call',
+							inputSource: 'workflowInputs',
+							workflowInputs: {},
+							inputOptions: {},
+						},
+						type: 'n8n-nodes-base.executeWorkflowTrigger',
+						typeVersion: 1.1,
+						position: [-140, -20],
+						id: '9abdbdac-5f32-4876-b4d5-895d8ca4cb00',
+						name: 'Test Node',
+					} as INode,
+				},
+				output: {
+					parameters: {
+						workflowInputs: ['At least 1 field is required.'],
+					},
+				},
+			},
+			{
+				description:
+					'Fixed collection::Should return an issue if field count is higher than maximum specified',
+				input: {
+					nodeProperties: {
+						displayName: 'Workflow Inputs',
+						name: 'workflowInputs',
+						placeholder: 'Add Field',
+						type: 'fixedCollection',
+						description:
+							'Define expected input fields. If no inputs are provided, all data from the calling workflow will be passed through.',
+						typeOptions: {
+							multipleValues: true,
+							sortable: true,
+							maxAllowedFields: 1,
+						},
+						displayOptions: {
+							show: {
+								'@version': [
+									{
+										_cnd: {
+											gte: 1.1,
+										},
+									},
+								],
+								inputSource: ['workflowInputs'],
+							},
+						},
+						default: {},
+						options: [
+							{
+								name: 'values',
+								displayName: 'Values',
+								values: [
+									{
+										displayName: 'Name',
+										name: 'name',
+										type: 'string',
+										default: '',
+										placeholder: 'e.g. fieldName',
+										description: 'Name of the field',
+										noDataExpression: true,
+									},
+									{
+										displayName: 'Type',
+										name: 'type',
+										type: 'options',
+										description: 'The field value type',
+										options: [
+											{
+												name: 'Allow Any Type',
+												value: 'any',
+											},
+											{
+												name: 'String',
+												value: 'string',
+											},
+											{
+												name: 'Number',
+												value: 'number',
+											},
+											{
+												name: 'Boolean',
+												value: 'boolean',
+											},
+											{
+												name: 'Array',
+												value: 'array',
+											},
+											{
+												name: 'Object',
+												value: 'object',
+											},
+										],
+										default: 'string',
+										noDataExpression: true,
+									},
+								],
+							},
+						],
+					},
+					nodeValues: {
+						events: 'worklfow_call',
+						inputSource: 'workflowInputs',
+						workflowInputs: {
+							values: [
+								{
+									name: 'field1',
+									type: 'string',
+								},
+								{
+									name: 'field2',
+									type: 'string',
+								},
+							],
+						},
+						inputOptions: {},
+					},
+					path: '',
+					node: {
+						parameters: {
+							events: 'worklfow_call',
+							inputSource: 'workflowInputs',
+							workflowInputs: {},
+							inputOptions: {},
+						},
+						type: 'n8n-nodes-base.executeWorkflowTrigger',
+						typeVersion: 1.1,
+						position: [-140, -20],
+						id: '9abdbdac-5f32-4876-b4d5-895d8ca4cb00',
+						name: 'Test Node',
+					} as INode,
+				},
+				output: {
+					parameters: {
+						workflowInputs: ['At most 1 field is allowed.'],
+					},
+				},
+			},
+			{
+				description: 'Fixed collection::Should not return issues if the collection is hidden',
+				input: {
+					nodeProperties: {
+						displayName: 'Workflow Inputs',
+						name: 'workflowInputs',
+						placeholder: 'Add Field',
+						type: 'fixedCollection',
+						description:
+							'Define expected input fields. If no inputs are provided, all data from the calling workflow will be passed through.',
+						typeOptions: {
+							multipleValues: true,
+							sortable: true,
+							maxAllowedFields: 1,
+						},
+						displayOptions: {
+							show: {
+								'@version': [
+									{
+										_cnd: {
+											gte: 1.1,
+										},
+									},
+								],
+								inputSource: ['workflowInputs'],
+							},
+						},
+						default: {},
+						options: [
+							{
+								name: 'values',
+								displayName: 'Values',
+								values: [
+									{
+										displayName: 'Name',
+										name: 'name',
+										type: 'string',
+										default: '',
+										placeholder: 'e.g. fieldName',
+										description: 'Name of the field',
+										noDataExpression: true,
+									},
+									{
+										displayName: 'Type',
+										name: 'type',
+										type: 'options',
+										description: 'The field value type',
+										options: [
+											{
+												name: 'Allow Any Type',
+												value: 'any',
+											},
+											{
+												name: 'String',
+												value: 'string',
+											},
+											{
+												name: 'Number',
+												value: 'number',
+											},
+											{
+												name: 'Boolean',
+												value: 'boolean',
+											},
+											{
+												name: 'Array',
+												value: 'array',
+											},
+											{
+												name: 'Object',
+												value: 'object',
+											},
+										],
+										default: 'string',
+										noDataExpression: true,
+									},
+								],
+							},
+						],
+					},
+					nodeValues: {
+						events: 'worklfow_call',
+						inputSource: 'somethingElse',
+						workflowInputs: {
+							values: [
+								{
+									name: 'field1',
+									type: 'string',
+								},
+								{
+									name: 'field2',
+									type: 'string',
+								},
+							],
+						},
+						inputOptions: {},
+					},
+					path: '',
+					node: {
+						parameters: {
+							events: 'worklfow_call',
+							inputSource: 'workflowInputs',
+							workflowInputs: {},
+							inputOptions: {},
+						},
+						type: 'n8n-nodes-base.executeWorkflowTrigger',
+						typeVersion: 1.1,
+						position: [-140, -20],
+						id: '9abdbdac-5f32-4876-b4d5-895d8ca4cb00',
+						name: 'Test Node',
+					} as INode,
+				},
+				output: {},
+			},
+		];
+
+		for (const testData of tests) {
+			test(testData.description, () => {
+				const result = getParameterIssues(
+					testData.input.nodeProperties,
+					testData.input.nodeValues,
+					testData.input.path,
+					testData.input.node,
+				);
+				expect(result).toEqual(testData.output);
+			});
+		}
+	});
+
+	describe('getParameterIssues, required parameters validation', () => {
+		const testNode: INode = {
+			id: '12345',
+			name: 'Test Node',
+			typeVersion: 1,
+			type: 'n8n-nodes-base.testNode',
+			position: [1, 1],
+			parameters: {},
+		};
+
+		it('Should validate required dateTime parameters if empty string', () => {
+			const nodeProperties: INodeProperties = {
+				displayName: 'Date Time',
+				name: 'testDateTime',
+				type: 'dateTime',
+				default: '',
+				required: true,
+			};
+			const nodeValues: INodeParameters = {
+				testDateTime: '',
+			};
+
+			const result = getParameterIssues(nodeProperties, nodeValues, '', testNode);
+
+			expect(result).toEqual({
+				parameters: {
+					testDateTime: ['Parameter "Date Time" is required.'],
+				},
+			});
+		});
+
+		it('Should validate required dateTime parameters if empty undefined', () => {
+			const nodeProperties: INodeProperties = {
+				displayName: 'Date Time',
+				name: 'testDateTime',
+				type: 'dateTime',
+				default: '',
+				required: true,
+			};
+			const nodeValues: INodeParameters = {
+				testDateTime: undefined,
+			};
+
+			const result = getParameterIssues(nodeProperties, nodeValues, '', testNode);
+
+			expect(result).toEqual({
+				parameters: {
+					testDateTime: ['Parameter "Date Time" is required.'],
+				},
+			});
+		});
 	});
 });

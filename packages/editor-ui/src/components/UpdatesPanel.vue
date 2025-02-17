@@ -1,36 +1,73 @@
+<script setup lang="ts">
+import ModalDrawer from './ModalDrawer.vue';
+import TimeAgo from './TimeAgo.vue';
+import VersionCard from './VersionCard.vue';
+import { VERSIONS_MODAL_KEY } from '../constants';
+import { useVersionsStore } from '@/stores/versions.store';
+import { useI18n } from '@/composables/useI18n';
+import { usePageRedirectionHelper } from '@/composables/usePageRedirectionHelper';
+
+const versionsStore = useVersionsStore();
+const pageRedirectionHelper = usePageRedirectionHelper();
+
+const i18n = useI18n();
+</script>
+
 <template>
 	<ModalDrawer
 		:name="VERSIONS_MODAL_KEY"
 		direction="ltr"
 		width="520px"
+		data-test-id="version-updates-panel"
 	>
-		<template slot="header">
-			<span :class="$style.title">We’ve been busy ✨</span>
+		<template #header>
+			<span :class="$style.title">
+				{{ i18n.baseText('updatesPanel.weVeBeenBusy') }}
+			</span>
 		</template>
-		<template slot="content">
+		<template #content>
 			<section :class="$style['description']">
-
-				<p v-if="currentVersion">
-					You’re on {{ currentVersion.name }}, which was released
-					<strong><TimeAgo :date="currentVersion.createdAt" /></strong> and is
-					<strong>{{ nextVersions.length }} version{{nextVersions.length > 1 ? "s" : ""}}</strong>
-					behind the latest and greatest n8n
+				<p v-if="versionsStore.currentVersion">
+					{{
+						i18n.baseText('updatesPanel.youReOnVersion', {
+							interpolate: { currentVersionName: versionsStore.currentVersion.name },
+						})
+					}}
+					<strong>
+						<TimeAgo :date="versionsStore.currentVersion.createdAt" />
+					</strong>
+					{{ i18n.baseText('updatesPanel.andIs') }}
+					<strong>
+						{{
+							i18n.baseText('updatesPanel.version', {
+								interpolate: {
+									numberOfVersions: versionsStore.nextVersions.length,
+									howManySuffix: versionsStore.nextVersions.length > 1 ? 's' : '',
+								},
+							})
+						}}
+					</strong>
+					{{ i18n.baseText('updatesPanel.behindTheLatest') }}
 				</p>
 
-				<a
-					:class="$style['info-url']"
-					:href="infoUrl"
-					v-if="infoUrl"
-					target="_blank"
+				<n8n-button
+					v-if="versionsStore.infoUrl"
+					:text="true"
+					type="primary"
+					size="large"
+					:class="$style['link']"
+					:bold="true"
+					@click="pageRedirectionHelper.goToVersions()"
 				>
-					<font-awesome-icon icon="info-circle"></font-awesome-icon>
-					<span>How to update your n8n version</span>
-				</a>
-
+					<font-awesome-icon icon="info-circle" class="mr-2xs" />
+					<span>
+						{{ i18n.baseText('updatesPanel.howToUpdateYourN8nVersion') }}
+					</span>
+				</n8n-button>
 			</section>
 			<section :class="$style.versions">
 				<div
-					v-for="version in nextVersions"
+					v-for="version in versionsStore.nextVersions"
 					:key="version.name"
 					:class="$style['versions-card']"
 				>
@@ -41,39 +78,12 @@
 	</ModalDrawer>
 </template>
 
-<script lang="ts">
-import Vue from 'vue';
-import { mapGetters } from 'vuex';
-
-import ModalDrawer from './ModalDrawer.vue';
-import TimeAgo from './TimeAgo.vue';
-import VersionCard from './VersionCard.vue';
-import { VERSIONS_MODAL_KEY } from '../constants';
-
-export default Vue.extend({
-	name: 'UpdatesPanel',
-	components: {
-		ModalDrawer,
-		VersionCard,
-		TimeAgo,
-	},
-	computed: {
-		...mapGetters('versions', ['nextVersions', 'currentVersion', 'infoUrl']),
-	},
-	data() {
-		return {
-			VERSIONS_MODAL_KEY,
-		};
-	},
-});
-</script>
-
 <style module lang="scss">
 .title {
 	margin: 0;
 	font-size: 24px;
 	line-height: 24px;
-	color: $--updates-panel-text-color;
+	color: $updates-panel-text-color;
 	font-weight: 400;
 }
 
@@ -85,7 +95,7 @@ export default Vue.extend({
 	p {
 		font-size: 16px;
 		line-height: 22px;
-		color: $--updates-panel-description-text-color;
+		color: $updates-panel-description-text-color;
 		font-weight: 400;
 		margin: 0 0 16px 0;
 	}
@@ -93,11 +103,20 @@ export default Vue.extend({
 	div {
 		padding-top: 20px;
 	}
+
+	.link {
+		padding-left: 0px;
+	}
+
+	.link:hover {
+		color: var(--prim-color-primary);
+		text-decoration: none;
+	}
 }
 
 .versions {
-	background-color: $--updates-panel-dark-background-color;
-	border-top: $--updates-panel-border;
+	background-color: $updates-panel-dark-background-color;
+	border-top: $updates-panel-border;
 	height: 100%;
 	padding: 30px;
 	overflow-y: scroll;
@@ -106,20 +125,5 @@ export default Vue.extend({
 
 .versions-card {
 	margin-block-end: 15px;
-}
-
-.info-url {
-	text-decoration: none;
-	font-size: 14px;
-
-	svg {
-		color: $--updates-panel-info-icon-color;
-		margin-right: 5px;
-	}
-
-	span {
-		color: $--updates-panel-info-url-color;
-		font-weight: 600;
-	}
 }
 </style>

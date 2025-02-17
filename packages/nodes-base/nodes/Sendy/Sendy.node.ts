@@ -1,34 +1,22 @@
-import {
+import type {
 	IExecuteFunctions,
-} from 'n8n-core';
-
-import {
 	IDataObject,
 	INodeExecutionData,
 	INodeType,
 	INodeTypeDescription,
-	NodeApiError,
-	NodeOperationError,
+	JsonObject,
 } from 'n8n-workflow';
+import { NodeApiError, NodeConnectionType, NodeOperationError } from 'n8n-workflow';
 
-import {
-	sendyApiRequest,
-} from './GenericFunctions';
-
-import {
-	campaignFields,
-	campaignOperations,
-} from './CampaignDescription';
-
-import {
-	subscriberFields,
-	subscriberOperations,
-} from './SubscriberDescription';
+import { campaignFields, campaignOperations } from './CampaignDescription';
+import { sendyApiRequest } from './GenericFunctions';
+import { subscriberFields, subscriberOperations } from './SubscriberDescription';
 
 export class Sendy implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'Sendy',
 		name: 'sendy',
+		// eslint-disable-next-line n8n-nodes-base/node-class-description-icon-not-svg
 		icon: 'file:sendy.png',
 		group: ['input'],
 		version: 1,
@@ -36,10 +24,10 @@ export class Sendy implements INodeType {
 		description: 'Consume Sendy API',
 		defaults: {
 			name: 'Sendy',
-			color: '#000000',
 		},
-		inputs: ['main'],
-		outputs: ['main'],
+		usableAsTool: true,
+		inputs: [NodeConnectionType.Main],
+		outputs: [NodeConnectionType.Main],
 		credentials: [
 			{
 				name: 'sendyApi',
@@ -51,6 +39,7 @@ export class Sendy implements INodeType {
 				displayName: 'Resource',
 				name: 'resource',
 				type: 'options',
+				noDataExpression: true,
 				options: [
 					{
 						name: 'Campaign',
@@ -62,7 +51,6 @@ export class Sendy implements INodeType {
 					},
 				],
 				default: 'subscriber',
-				description: 'The resource to operate on.',
 			},
 			...campaignOperations,
 			...campaignFields,
@@ -74,16 +62,13 @@ export class Sendy implements INodeType {
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
 		const items = this.getInputData();
 		const returnData: IDataObject[] = [];
-		const length = (items.length as unknown) as number;
-		const qs: IDataObject = {};
+		const length = items.length;
 		let responseData;
-		const resource = this.getNodeParameter('resource', 0) as string;
-		const operation = this.getNodeParameter('operation', 0) as string;
+		const resource = this.getNodeParameter('resource', 0);
+		const operation = this.getNodeParameter('operation', 0);
 		for (let i = 0; i < length; i++) {
-
 			if (resource === 'campaign') {
 				if (operation === 'create') {
-
 					const fromName = this.getNodeParameter('fromName', i) as string;
 
 					const fromEmail = this.getNodeParameter('fromEmail', i) as string;
@@ -98,7 +83,12 @@ export class Sendy implements INodeType {
 
 					const sendCampaign = this.getNodeParameter('sendCampaign', i) as boolean;
 
-					const additionalFields = this.getNodeParameter('additionalFields', i) as IDataObject;
+					const additionalFields = this.getNodeParameter('additionalFields', i);
+
+					let brandId = null;
+					if (!sendCampaign) {
+						brandId = this.getNodeParameter('brandId', i) as string;
+					}
 
 					const body: IDataObject = {
 						from_name: fromName,
@@ -109,6 +99,10 @@ export class Sendy implements INodeType {
 						send_campaign: sendCampaign ? 1 : 0,
 						html_text: htmlText,
 					};
+
+					if (brandId) {
+						body.brand_id = brandId;
+					}
 
 					if (additionalFields.plainText) {
 						body.plain_text = additionalFields.plainText;
@@ -130,20 +124,16 @@ export class Sendy implements INodeType {
 						body.exclude_segments_ids = additionalFields.excludeSegmentIds as string;
 					}
 
-					if (additionalFields.brandId) {
-						body.brand_id = additionalFields.brandId as string;
-					}
-
 					if (additionalFields.queryString) {
 						body.query_string = additionalFields.queryString as string;
 					}
 
 					if (additionalFields.trackOpens) {
-						body.track_opens = additionalFields.trackOpens as boolean ? 1 : 0;
+						body.track_opens = (additionalFields.trackOpens as boolean) ? 1 : 0;
 					}
 
 					if (additionalFields.trackClicks) {
-						body.track_clicks = additionalFields.trackClicks as boolean ? 1 : 0;
+						body.track_clicks = (additionalFields.trackClicks as boolean) ? 1 : 0;
 					}
 
 					responseData = await sendyApiRequest.call(
@@ -153,27 +143,23 @@ export class Sendy implements INodeType {
 						body,
 					);
 
-					const success = [
-						'Campaign created',
-						'Campaign created and now sending',
-					];
+					const success = ['Campaign created', 'Campaign created and now sending'];
 
-					if (success.includes(responseData)) {
+					if (success.includes(responseData as string)) {
 						responseData = { message: responseData };
 					} else {
-						throw new NodeApiError(this.getNode(), responseData, { httpCode: '400' });
+						throw new NodeApiError(this.getNode(), responseData as JsonObject, { httpCode: '400' });
 					}
 				}
 			}
 
 			if (resource === 'subscriber') {
 				if (operation === 'add') {
-
 					const email = this.getNodeParameter('email', i) as string;
 
 					const listId = this.getNodeParameter('listId', i) as string;
 
-					const additionalFields = this.getNodeParameter('additionalFields', i) as IDataObject;
+					const additionalFields = this.getNodeParameter('additionalFields', i);
 
 					const body: IDataObject = {
 						email,
@@ -182,22 +168,20 @@ export class Sendy implements INodeType {
 
 					Object.assign(body, additionalFields);
 
-					responseData = await sendyApiRequest.call(
-						this,
-						'POST',
-						'/subscribe',
-						body,
-					);
+					responseData = await sendyApiRequest.call(this, 'POST', '/subscribe', body);
 
 					if (responseData === '1') {
 						responseData = { success: true };
 					} else {
-						throw new NodeOperationError(this.getNode(), `Sendy error response [${400}]: ${responseData}`);
+						throw new NodeOperationError(
+							this.getNode(),
+							`Sendy error response [${400}]: ${responseData}`,
+							{ itemIndex: i },
+						);
 					}
 				}
 
 				if (operation === 'count') {
-
 					const listId = this.getNodeParameter('listId', i) as string;
 
 					const body: IDataObject = {
@@ -219,15 +203,18 @@ export class Sendy implements INodeType {
 						'List does not exist',
 					];
 
-					if (!errors.includes(responseData)) {
+					if (!errors.includes(responseData as string)) {
 						responseData = { count: responseData };
 					} else {
-						throw new NodeOperationError(this.getNode(), `Sendy error response [${400}]: ${responseData}`);
+						throw new NodeOperationError(
+							this.getNode(),
+							`Sendy error response [${400}]: ${responseData}`,
+							{ itemIndex: i },
+						);
 					}
 				}
 
 				if (operation === 'delete') {
-
 					const email = this.getNodeParameter('email', i) as string;
 
 					const listId = this.getNodeParameter('listId', i) as string;
@@ -247,12 +234,15 @@ export class Sendy implements INodeType {
 					if (responseData === '1') {
 						responseData = { success: true };
 					} else {
-						throw new NodeOperationError(this.getNode(), `Sendy error response [${400}]: ${responseData}`);
+						throw new NodeOperationError(
+							this.getNode(),
+							`Sendy error response [${400}]: ${responseData}`,
+							{ itemIndex: i },
+						);
 					}
 				}
 
 				if (operation === 'remove') {
-
 					const email = this.getNodeParameter('email', i) as string;
 
 					const listId = this.getNodeParameter('listId', i) as string;
@@ -262,22 +252,20 @@ export class Sendy implements INodeType {
 						list: listId,
 					};
 
-					responseData = await sendyApiRequest.call(
-						this,
-						'POST',
-						'/unsubscribe',
-						body,
-					);
+					responseData = await sendyApiRequest.call(this, 'POST', '/unsubscribe', body);
 
 					if (responseData === '1') {
 						responseData = { success: true };
 					} else {
-						throw new NodeOperationError(this.getNode(), `Sendy error response [${400}]: ${responseData}`);
+						throw new NodeOperationError(
+							this.getNode(),
+							`Sendy error response [${400}]: ${responseData}`,
+							{ itemIndex: i },
+						);
 					}
 				}
 
 				if (operation === 'status') {
-
 					const email = this.getNodeParameter('email', i) as string;
 
 					const listId = this.getNodeParameter('listId', i) as string;
@@ -303,10 +291,14 @@ export class Sendy implements INodeType {
 						'Complained',
 					];
 
-					if (status.includes(responseData)) {
+					if (status.includes(responseData as string)) {
 						responseData = { status: responseData };
 					} else {
-						throw new NodeOperationError(this.getNode(), `Sendy error response [${400}]: ${responseData}`);
+						throw new NodeOperationError(
+							this.getNode(),
+							`Sendy error response [${400}]: ${responseData}`,
+							{ itemIndex: i },
+						);
 					}
 				}
 			}

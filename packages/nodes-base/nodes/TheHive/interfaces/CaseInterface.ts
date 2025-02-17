@@ -1,5 +1,6 @@
-import { IDataObject } from 'n8n-workflow';
-import { TLP } from './AlertInterface';
+import type { IDataObject } from 'n8n-workflow';
+
+import type { TLP } from './AlertInterface';
 export interface ICase {
 	// Required attributes
 	id?: string;
@@ -31,14 +32,13 @@ export interface ICase {
 	upadtedAt?: Date;
 }
 
-
-export enum CaseStatus {
+export const enum CaseStatus {
 	OPEN = 'Open',
 	RESOLVED = 'Resolved',
 	DELETED = 'Deleted',
 }
 
-export enum CaseResolutionStatus {
+export const enum CaseResolutionStatus {
 	INDETERMINATE = 'Indeterminate',
 	FALSEPOSITIVE = 'FalsePositive',
 	TRUEPOSITIVE = 'TruePositive',
@@ -46,7 +46,7 @@ export enum CaseResolutionStatus {
 	DUPLICATED = 'Duplicated',
 }
 
-export enum CaseImpactStatus {
+export const enum CaseImpactStatus {
 	NOIMPACT = 'NoImpact',
 	WITHIMPACT = 'WithImpact',
 	NOTAPPLICABLE = 'NotApplicable',

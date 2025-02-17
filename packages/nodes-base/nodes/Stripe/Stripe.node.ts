@@ -1,8 +1,6 @@
-import {
+import isEmpty from 'lodash/isEmpty';
+import type {
 	IExecuteFunctions,
-} from 'n8n-core';
-
-import {
 	IDataObject,
 	ILoadOptionsFunctions,
 	INodeExecutionData,
@@ -10,19 +8,7 @@ import {
 	INodeType,
 	INodeTypeDescription,
 } from 'n8n-workflow';
-
-import {
-	isEmpty,
-} from 'lodash';
-
-import {
-	adjustChargeFields,
-	adjustCustomerFields,
-	adjustMetadata,
-	handleListing,
-	loadResource,
-	stripeApiRequest,
-} from './helpers';
+import { NodeConnectionType, NodeOperationError } from 'n8n-workflow';
 
 import {
 	balanceOperations,
@@ -39,6 +25,14 @@ import {
 	tokenFields,
 	tokenOperations,
 } from './descriptions';
+import {
+	adjustChargeFields,
+	adjustCustomerFields,
+	adjustMetadata,
+	handleListing,
+	loadResource,
+	stripeApiRequest,
+} from './helpers';
 
 export class Stripe implements INodeType {
 	description: INodeTypeDescription = {
@@ -51,10 +45,10 @@ export class Stripe implements INodeType {
 		description: 'Consume the Stripe API',
 		defaults: {
 			name: 'Stripe',
-			color: '#6772e5',
 		},
-		inputs: ['main'],
-		outputs: ['main'],
+		usableAsTool: true,
+		inputs: [NodeConnectionType.Main],
+		outputs: [NodeConnectionType.Main],
 		credentials: [
 			{
 				name: 'stripeApi',
@@ -66,6 +60,7 @@ export class Stripe implements INodeType {
 				displayName: 'Resource',
 				name: 'resource',
 				type: 'options',
+				noDataExpression: true,
 				options: [
 					{
 						name: 'Balance',
@@ -97,7 +92,6 @@ export class Stripe implements INodeType {
 					},
 				],
 				default: 'balance',
-				description: 'Resource to consume',
 			},
 			...balanceOperations,
 			...customerCardOperations,
@@ -137,18 +131,15 @@ export class Stripe implements INodeType {
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
 		const items = this.getInputData();
 
-		const resource = this.getNodeParameter('resource', 0) as string;
-		const operation = this.getNodeParameter('operation', 0) as string;
+		const resource = this.getNodeParameter('resource', 0);
+		const operation = this.getNodeParameter('operation', 0);
 
 		let responseData;
-		const returnData: IDataObject[] = [];
+		const returnData: INodeExecutionData[] = [];
 
 		for (let i = 0; i < items.length; i++) {
-
 			try {
-
 				if (resource === 'balance') {
-
 					// *********************************************************************
 					//                             balance
 					// *********************************************************************
@@ -156,17 +147,13 @@ export class Stripe implements INodeType {
 					// https://stripe.com/docs/api/balance
 
 					if (operation === 'get') {
-
 						// ----------------------------------
 						//       balance: get
 						// ----------------------------------
 
 						responseData = await stripeApiRequest.call(this, 'GET', '/balance', {}, {});
-
 					}
-
 				} else if (resource === 'customerCard') {
-
 					// *********************************************************************
 					//                           customer card
 					// *********************************************************************
@@ -174,7 +161,6 @@ export class Stripe implements INodeType {
 					// https://stripe.com/docs/api/cards
 
 					if (operation === 'add') {
-
 						// ----------------------------------
 						//         customerCard: add
 						// ----------------------------------
@@ -186,9 +172,7 @@ export class Stripe implements INodeType {
 						const customerId = this.getNodeParameter('customerId', i);
 						const endpoint = `/customers/${customerId}/sources`;
 						responseData = await stripeApiRequest.call(this, 'POST', endpoint, body, {});
-
 					} else if (operation === 'remove') {
-
 						// ----------------------------------
 						//       customerCard: remove
 						// ----------------------------------
@@ -197,9 +181,7 @@ export class Stripe implements INodeType {
 						const cardId = this.getNodeParameter('cardId', i);
 						const endpoint = `/customers/${customerId}/sources/${cardId}`;
 						responseData = await stripeApiRequest.call(this, 'DELETE', endpoint, {}, {});
-
 					} else if (operation === 'get') {
-
 						// ----------------------------------
 						//        customerCard: get
 						// ----------------------------------
@@ -208,11 +190,8 @@ export class Stripe implements INodeType {
 						const sourceId = this.getNodeParameter('sourceId', i);
 						const endpoint = `/customers/${customerId}/sources/${sourceId}`;
 						responseData = await stripeApiRequest.call(this, 'GET', endpoint, {}, {});
-
 					}
-
 				} else if (resource === 'charge') {
-
 					// *********************************************************************
 					//                             charge
 					// *********************************************************************
@@ -220,7 +199,6 @@ export class Stripe implements INodeType {
 					// https://stripe.com/docs/api/charges
 
 					if (operation === 'create') {
-
 						// ----------------------------------
 						//          charge: create
 						// ----------------------------------
@@ -232,54 +210,55 @@ export class Stripe implements INodeType {
 							source: this.getNodeParameter('source', i),
 						} as IDataObject;
 
-						const additionalFields = this.getNodeParameter('additionalFields', i) as IDataObject;
+						const additionalFields = this.getNodeParameter('additionalFields', i);
 
 						if (!isEmpty(additionalFields)) {
 							Object.assign(body, adjustChargeFields(additionalFields));
 						}
 
 						responseData = await stripeApiRequest.call(this, 'POST', '/charges', body, {});
-
 					} else if (operation === 'get') {
-
 						// ----------------------------------
 						//           charge: get
 						// ----------------------------------
 
 						const chargeId = this.getNodeParameter('chargeId', i);
 						responseData = await stripeApiRequest.call(this, 'GET', `/charges/${chargeId}`, {}, {});
-
 					} else if (operation === 'getAll') {
-
 						// ----------------------------------
 						//          charge: getAll
 						// ----------------------------------
 
 						responseData = await handleListing.call(this, resource, i);
-
 					} else if (operation === 'update') {
-
 						// ----------------------------------
 						//         charge: update
 						// ----------------------------------
 
 						const body = {} as IDataObject;
 
-						const updateFields = this.getNodeParameter('updateFields', i) as IDataObject;
+						const updateFields = this.getNodeParameter('updateFields', i);
 
 						if (isEmpty(updateFields)) {
-							throw new Error(`Please enter at least one field to update for the ${resource}.`);
+							throw new NodeOperationError(
+								this.getNode(),
+								`Please enter at least one field to update for the ${resource}.`,
+								{ itemIndex: i },
+							);
 						}
 
 						Object.assign(body, adjustChargeFields(updateFields));
 
 						const chargeId = this.getNodeParameter('chargeId', i);
-						responseData = await stripeApiRequest.call(this, 'POST', `/charges/${chargeId}`, body, {});
-
+						responseData = await stripeApiRequest.call(
+							this,
+							'POST',
+							`/charges/${chargeId}`,
+							body,
+							{},
+						);
 					}
-
 				} else if (resource === 'coupon') {
-
 					// *********************************************************************
 					//                             coupon
 					// *********************************************************************
@@ -287,7 +266,6 @@ export class Stripe implements INodeType {
 					// https://stripe.com/docs/api/coupons
 
 					if (operation === 'create') {
-
 						// ----------------------------------
 						//          coupon: create
 						// ----------------------------------
@@ -306,19 +284,14 @@ export class Stripe implements INodeType {
 						}
 
 						responseData = await stripeApiRequest.call(this, 'POST', '/coupons', body, {});
-
 					} else if (operation === 'getAll') {
-
 						// ----------------------------------
 						//          coupon: getAll
 						// ----------------------------------
 
 						responseData = await handleListing.call(this, resource, i);
-
 					}
-
 				} else if (resource === 'customer') {
-
 					// *********************************************************************
 					//                             customer
 					// *********************************************************************
@@ -326,7 +299,6 @@ export class Stripe implements INodeType {
 					// https://stripe.com/docs/api/customers
 
 					if (operation === 'create') {
-
 						// ----------------------------------
 						//         customer: create
 						// ----------------------------------
@@ -335,70 +307,81 @@ export class Stripe implements INodeType {
 							name: this.getNodeParameter('name', i),
 						} as IDataObject;
 
-						const additionalFields = this.getNodeParameter('additionalFields', i) as IDataObject;
+						const additionalFields = this.getNodeParameter('additionalFields', i);
 
 						if (!isEmpty(additionalFields)) {
 							Object.assign(body, adjustCustomerFields(additionalFields));
 						}
 
 						responseData = await stripeApiRequest.call(this, 'POST', '/customers', body, {});
-
 					} else if (operation === 'delete') {
-
 						// ----------------------------------
 						//         customer: delete
 						// ----------------------------------
 
 						const customerId = this.getNodeParameter('customerId', i);
-						responseData = await stripeApiRequest.call(this, 'DELETE', `/customers/${customerId}`, {}, {});
-
+						responseData = await stripeApiRequest.call(
+							this,
+							'DELETE',
+							`/customers/${customerId}`,
+							{},
+							{},
+						);
 					} else if (operation === 'get') {
-
 						// ----------------------------------
 						//          customer: get
 						// ----------------------------------
 
 						const customerId = this.getNodeParameter('customerId', i);
-						responseData = await stripeApiRequest.call(this, 'GET', `/customers/${customerId}`, {}, {});
-
+						responseData = await stripeApiRequest.call(
+							this,
+							'GET',
+							`/customers/${customerId}`,
+							{},
+							{},
+						);
 					} else if (operation === 'getAll') {
-
 						// ----------------------------------
 						//        customer: getAll
 						// ----------------------------------
 
 						const qs = {} as IDataObject;
-						const filters = this.getNodeParameter('filters', i) as IDataObject;
+						const filters = this.getNodeParameter('filters', i);
 
 						if (!isEmpty(filters)) {
 							qs.email = filters.email;
 						}
 
 						responseData = await handleListing.call(this, resource, i, qs);
-
 					} else if (operation === 'update') {
-
 						// ----------------------------------
 						//        customer: update
 						// ----------------------------------
 
 						const body = {} as IDataObject;
 
-						const updateFields = this.getNodeParameter('updateFields', i) as IDataObject;
+						const updateFields = this.getNodeParameter('updateFields', i);
 
 						if (isEmpty(updateFields)) {
-							throw new Error(`Please enter at least one field to update for the ${resource}.`);
+							throw new NodeOperationError(
+								this.getNode(),
+								`Please enter at least one field to update for the ${resource}.`,
+								{ itemIndex: i },
+							);
 						}
 
 						Object.assign(body, adjustCustomerFields(updateFields));
 
 						const customerId = this.getNodeParameter('customerId', i);
-						responseData = await stripeApiRequest.call(this, 'POST', `/customers/${customerId}`, body, {});
-
+						responseData = await stripeApiRequest.call(
+							this,
+							'POST',
+							`/customers/${customerId}`,
+							body,
+							{},
+						);
 					}
-
 				} else if (resource === 'source') {
-
 					// *********************************************************************
 					//                             source
 					// *********************************************************************
@@ -406,7 +389,6 @@ export class Stripe implements INodeType {
 					// https://stripe.com/docs/api/sources
 
 					if (operation === 'create') {
-
 						// ----------------------------------
 						//         source: create
 						// ----------------------------------
@@ -419,7 +401,7 @@ export class Stripe implements INodeType {
 							currency: this.getNodeParameter('currency', i),
 						} as IDataObject;
 
-						const additionalFields = this.getNodeParameter('additionalFields', i) as IDataObject;
+						const additionalFields = this.getNodeParameter('additionalFields', i);
 
 						if (!isEmpty(additionalFields)) {
 							Object.assign(body, adjustMetadata(additionalFields));
@@ -430,9 +412,7 @@ export class Stripe implements INodeType {
 						// attach source to customer
 						const endpoint = `/customers/${customerId}/sources`;
 						await stripeApiRequest.call(this, 'POST', endpoint, { source: responseData.id }, {});
-
 					} else if (operation === 'delete') {
-
 						// ----------------------------------
 						//          source: delete
 						// ----------------------------------
@@ -441,20 +421,15 @@ export class Stripe implements INodeType {
 						const customerId = this.getNodeParameter('customerId', i);
 						const endpoint = `/customers/${customerId}/sources/${sourceId}`;
 						responseData = await stripeApiRequest.call(this, 'DELETE', endpoint, {}, {});
-
 					} else if (operation === 'get') {
-
 						// ----------------------------------
 						//          source: get
 						// ----------------------------------
 
 						const sourceId = this.getNodeParameter('sourceId', i);
 						responseData = await stripeApiRequest.call(this, 'GET', `/sources/${sourceId}`, {}, {});
-
 					}
-
 				} else if (resource === 'token') {
-
 					// *********************************************************************
 					//                             token
 					// *********************************************************************
@@ -462,7 +437,6 @@ export class Stripe implements INodeType {
 					// https://stripe.com/docs/api/tokens
 
 					if (operation === 'create') {
-
 						// ----------------------------------
 						//          token: create
 						// ----------------------------------
@@ -471,7 +445,11 @@ export class Stripe implements INodeType {
 						const body = {} as IDataObject;
 
 						if (type !== 'cardToken') {
-							throw new Error('Only card token creation implemented.');
+							throw new NodeOperationError(
+								this.getNode(),
+								'Only card token creation implemented.',
+								{ itemIndex: i },
+							);
 						}
 
 						body.card = {
@@ -483,24 +461,28 @@ export class Stripe implements INodeType {
 
 						responseData = await stripeApiRequest.call(this, 'POST', '/tokens', body, {});
 					}
-
 				}
-
 			} catch (error) {
 				if (this.continueOnFail()) {
-					returnData.push({ error: error.message });
+					const executionErrorData = this.helpers.constructExecutionMetaData(
+						this.helpers.returnJsonArray({ error: error.message }),
+						{ itemData: { item: i } },
+					);
+					returnData.push(...executionErrorData);
 					continue;
 				}
 
 				throw error;
 			}
 
-			Array.isArray(responseData)
-				? returnData.push(...responseData)
-				: returnData.push(responseData);
+			const executionData = this.helpers.constructExecutionMetaData(
+				this.helpers.returnJsonArray(responseData as IDataObject[]),
+				{ itemData: { item: i } },
+			);
+
+			returnData.push(...executionData);
 		}
 
-		return [this.helpers.returnJsonArray(returnData)];
-
+		return [returnData];
 	}
 }

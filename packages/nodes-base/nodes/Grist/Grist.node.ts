@@ -1,21 +1,16 @@
 import {
-	IExecuteFunctions
-} from 'n8n-core';
-
-import {
-	ICredentialsDecrypted,
-	ICredentialTestFunctions,
-	IDataObject,
-	ILoadOptionsFunctions,
-	INodeExecutionData,
-	INodeType,
-	INodeTypeDescription,
-	NodeCredentialTestResult,
+	type IExecuteFunctions,
+	type ICredentialsDecrypted,
+	type ICredentialTestFunctions,
+	type IDataObject,
+	type ILoadOptionsFunctions,
+	type INodeCredentialTestResult,
+	type INodeExecutionData,
+	type INodeType,
+	type INodeTypeDescription,
+	type IRequestOptions,
+	NodeConnectionType,
 } from 'n8n-workflow';
-
-import {
-	OptionsWithUri,
-} from 'request';
 
 import {
 	gristApiRequest,
@@ -25,12 +20,8 @@ import {
 	parseSortProperties,
 	throwOnZeroDefinedFields,
 } from './GenericFunctions';
-
-import {
-	operationFields,
-} from './OperationDescription';
-
-import {
+import { operationFields } from './OperationDescription';
+import type {
 	FieldsToSend,
 	GristColumns,
 	GristCreateRowPayload,
@@ -51,10 +42,10 @@ export class Grist implements INodeType {
 		description: 'Consume the Grist API',
 		defaults: {
 			name: 'Grist',
-			color: '#394650',
 		},
-		inputs: ['main'],
-		outputs: ['main'],
+		usableAsTool: true,
+		inputs: [NodeConnectionType.Main],
+		outputs: [NodeConnectionType.Main],
 		credentials: [
 			{
 				name: 'gristApi',
@@ -72,7 +63,7 @@ export class Grist implements INodeType {
 				const tableId = this.getNodeParameter('tableId', 0) as string;
 				const endpoint = `/docs/${docId}/tables/${tableId}/columns`;
 
-				const { columns } = await gristApiRequest.call(this, 'GET', endpoint) as GristColumns;
+				const { columns } = (await gristApiRequest.call(this, 'GET', endpoint)) as GristColumns;
 				return columns.map(({ id }) => ({ name: id, value: id }));
 			},
 		},
@@ -81,23 +72,25 @@ export class Grist implements INodeType {
 			async gristApiTest(
 				this: ICredentialTestFunctions,
 				credential: ICredentialsDecrypted,
-			): Promise<NodeCredentialTestResult> {
-				const {
-					apiKey,
-					planType,
-					customSubdomain,
-				} = credential.data as GristCredentials;
-
-				const subdomain = planType === 'free' ? 'docs' : customSubdomain;
+			): Promise<INodeCredentialTestResult> {
+				const { apiKey, planType, customSubdomain, selfHostedUrl } =
+					credential.data as GristCredentials;
 
 				const endpoint = '/orgs';
 
-				const options: OptionsWithUri = {
+				const gristapiurl =
+					planType === 'free'
+						? `https://docs.getgrist.com/api${endpoint}`
+						: planType === 'paid'
+							? `https://${customSubdomain}.getgrist.com/api${endpoint}`
+							: `${selfHostedUrl}/api${endpoint}`;
+
+				const options: IRequestOptions = {
 					headers: {
 						Authorization: `Bearer ${apiKey}`,
 					},
 					method: 'GET',
-					uri: `https://${subdomain}.getgrist.com/api${endpoint}`,
+					uri: gristapiurl,
 					qs: { limit: 1 },
 					json: true,
 				};
@@ -121,16 +114,13 @@ export class Grist implements INodeType {
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
 		const items = this.getInputData();
 		let responseData;
-		const returnData: IDataObject[] = [];
+		const returnData: INodeExecutionData[] = [];
 
-		const operation = this.getNodeParameter('operation', 0) as string;
+		const operation = this.getNodeParameter('operation', 0);
 
 		for (let i = 0; i < items.length; i++) {
-
 			try {
-
 				if (operation === 'create') {
-
 					// ----------------------------------
 					//             create
 					// ----------------------------------
@@ -142,19 +132,15 @@ export class Grist implements INodeType {
 					const dataToSend = this.getNodeParameter('dataToSend', 0) as SendingOptions;
 
 					if (dataToSend === 'autoMapInputs') {
-
 						const incomingKeys = Object.keys(items[i].json);
 						const rawInputsToIgnore = this.getNodeParameter('inputsToIgnore', i) as string;
-						const inputsToIgnore = rawInputsToIgnore.split(',').map(c => c.trim());
+						const inputsToIgnore = rawInputsToIgnore.split(',').map((c) => c.trim());
 						const fields = parseAutoMappedInputs(incomingKeys, inputsToIgnore, items[i].json);
 						body.records.push({ fields });
-
 					} else if (dataToSend === 'defineInNode') {
-
 						const { properties } = this.getNodeParameter('fieldsToSend', i, []) as FieldsToSend;
 						throwOnZeroDefinedFields.call(this, properties);
 						body.records.push({ fields: parseDefinedFields(properties) });
-
 					}
 
 					const docId = this.getNodeParameter('docId', 0) as string;
@@ -166,9 +152,7 @@ export class Grist implements INodeType {
 						id: responseData.records[0].id,
 						...body.records[0].fields,
 					};
-
 				} else if (operation === 'delete') {
-
 					// ----------------------------------
 					//            delete
 					// ----------------------------------
@@ -180,13 +164,14 @@ export class Grist implements INodeType {
 					const endpoint = `/docs/${docId}/tables/${tableId}/data/delete`;
 
 					const rawRowIds = (this.getNodeParameter('rowId', i) as string).toString();
-					const body = rawRowIds.split(',').map(c => c.trim()).map(Number);
+					const body = rawRowIds
+						.split(',')
+						.map((c) => c.trim())
+						.map(Number);
 
 					await gristApiRequest.call(this, 'POST', endpoint, body);
 					responseData = { success: true };
-
 				} else if (operation === 'update') {
-
 					// ----------------------------------
 					//            update
 					// ----------------------------------
@@ -199,20 +184,16 @@ export class Grist implements INodeType {
 					const dataToSend = this.getNodeParameter('dataToSend', 0) as SendingOptions;
 
 					if (dataToSend === 'autoMapInputs') {
-
 						const incomingKeys = Object.keys(items[i].json);
 						const rawInputsToIgnore = this.getNodeParameter('inputsToIgnore', i) as string;
-						const inputsToIgnore = rawInputsToIgnore.split(',').map(c => c.trim());
+						const inputsToIgnore = rawInputsToIgnore.split(',').map((c) => c.trim());
 						const fields = parseAutoMappedInputs(incomingKeys, inputsToIgnore, items[i].json);
 						body.records.push({ id: Number(rowId), fields });
-
 					} else if (dataToSend === 'defineInNode') {
-
 						const { properties } = this.getNodeParameter('fieldsToSend', i, []) as FieldsToSend;
 						throwOnZeroDefinedFields.call(this, properties);
 						const fields = parseDefinedFields(properties);
 						body.records.push({ id: Number(rowId), fields });
-
 					}
 
 					const docId = this.getNodeParameter('docId', 0) as string;
@@ -224,9 +205,7 @@ export class Grist implements INodeType {
 						id: rowId,
 						...body.records[0].fields,
 					};
-
 				} else if (operation === 'getAll') {
-
 					// ----------------------------------
 					//             getAll
 					// ----------------------------------
@@ -239,13 +218,16 @@ export class Grist implements INodeType {
 
 					const qs: IDataObject = {};
 
-					const returnAll = this.getNodeParameter('returnAll', i) as boolean;
+					const returnAll = this.getNodeParameter('returnAll', i);
 
 					if (!returnAll) {
-						qs.limit = this.getNodeParameter('limit', i) as number;
+						qs.limit = this.getNodeParameter('limit', i);
 					}
 
-					const { sort, filter } = this.getNodeParameter('additionalOptions', i) as GristGetAllOptions;
+					const { sort, filter } = this.getNodeParameter(
+						'additionalOptions',
+						i,
+					) as GristGetAllOptions;
 
 					if (sort?.sortProperties.length) {
 						qs.sort = parseSortProperties(sort.sortProperties);
@@ -261,20 +243,25 @@ export class Grist implements INodeType {
 						return { id: data.id, ...(data.fields as object) };
 					});
 				}
-
 			} catch (error) {
 				if (this.continueOnFail()) {
-					returnData.push({ error: error.message });
+					const executionData = this.helpers.constructExecutionMetaData(
+						this.helpers.returnJsonArray({ error: error.message }),
+						{ itemData: { item: i } },
+					);
+					returnData.push(...executionData);
+
 					continue;
 				}
 				throw error;
 			}
-
-			Array.isArray(responseData)
-				? returnData.push(...responseData)
-				: returnData.push(responseData);
+			const executionData = this.helpers.constructExecutionMetaData(
+				this.helpers.returnJsonArray(responseData as IDataObject[]),
+				{ itemData: { item: i } },
+			);
+			returnData.push(...executionData);
 		}
 
-		return [this.helpers.returnJsonArray(returnData)];
+		return [returnData];
 	}
 }

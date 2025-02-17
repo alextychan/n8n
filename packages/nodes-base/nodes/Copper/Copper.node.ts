@@ -1,22 +1,11 @@
-import {
+import type {
 	IExecuteFunctions,
-} from 'n8n-core';
-
-import {
 	IDataObject,
 	INodeExecutionData,
 	INodeType,
 	INodeTypeDescription,
 } from 'n8n-workflow';
-
-import {
-	adjustCompanyFields,
-	adjustLeadFields,
-	adjustPersonFields,
-	adjustTaskFields,
-	copperApiRequest,
-	handleListing,
-} from './GenericFunctions';
+import { NodeConnectionType } from 'n8n-workflow';
 
 import {
 	companyFields,
@@ -36,6 +25,14 @@ import {
 	userFields,
 	userOperations,
 } from './descriptions';
+import {
+	adjustCompanyFields,
+	adjustLeadFields,
+	adjustPersonFields,
+	adjustTaskFields,
+	copperApiRequest,
+	handleListing,
+} from './GenericFunctions';
 
 export class Copper implements INodeType {
 	description: INodeTypeDescription = {
@@ -48,10 +45,10 @@ export class Copper implements INodeType {
 		description: 'Consume the Copper API',
 		defaults: {
 			name: 'Copper',
-			color: '#ff2564',
 		},
-		inputs: ['main'],
-		outputs: ['main'],
+		usableAsTool: true,
+		inputs: [NodeConnectionType.Main],
+		outputs: [NodeConnectionType.Main],
 		credentials: [
 			{
 				name: 'copperApi',
@@ -63,6 +60,7 @@ export class Copper implements INodeType {
 				displayName: 'Resource',
 				name: 'resource',
 				type: 'options',
+				noDataExpression: true,
 				options: [
 					{
 						name: 'Company',
@@ -98,7 +96,6 @@ export class Copper implements INodeType {
 					},
 				],
 				default: 'company',
-				description: 'Resource to consume',
 			},
 			...companyOperations,
 			...companyFields,
@@ -121,25 +118,21 @@ export class Copper implements INodeType {
 
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
 		const items = this.getInputData();
-		const returnData: IDataObject[] = [];
+		const returnData: INodeExecutionData[] = [];
 
-		const resource = this.getNodeParameter('resource', 0) as string;
-		const operation = this.getNodeParameter('operation', 0) as string;
+		const resource = this.getNodeParameter('resource', 0);
+		const operation = this.getNodeParameter('operation', 0);
 
 		let responseData;
 
 		for (let i = 0; i < items.length; i++) {
-
 			try {
-
 				if (resource === 'company') {
-
 					// **********************************************************************
 					//                                company
 					// **********************************************************************
 
 					if (operation === 'create') {
-
 						// ----------------------------------------
 						//             company: create
 						// ----------------------------------------
@@ -150,16 +143,14 @@ export class Copper implements INodeType {
 							name: this.getNodeParameter('name', i),
 						};
 
-						const additionalFields = this.getNodeParameter('additionalFields', i) as IDataObject;
+						const additionalFields = this.getNodeParameter('additionalFields', i);
 
 						if (Object.keys(additionalFields).length) {
 							Object.assign(body, adjustCompanyFields(additionalFields));
 						}
 
 						responseData = await copperApiRequest.call(this, 'POST', '/companies', body);
-
 					} else if (operation === 'delete') {
-
 						// ----------------------------------------
 						//             company: delete
 						// ----------------------------------------
@@ -169,9 +160,7 @@ export class Copper implements INodeType {
 						const companyId = this.getNodeParameter('companyId', i);
 
 						responseData = await copperApiRequest.call(this, 'DELETE', `/companies/${companyId}`);
-
 					} else if (operation === 'get') {
-
 						// ----------------------------------------
 						//               company: get
 						// ----------------------------------------
@@ -181,9 +170,7 @@ export class Copper implements INodeType {
 						const companyId = this.getNodeParameter('companyId', i);
 
 						responseData = await copperApiRequest.call(this, 'GET', `/companies/${companyId}`);
-
 					} else if (operation === 'getAll') {
-
 						// ----------------------------------------
 						//             company: getAll
 						// ----------------------------------------
@@ -198,9 +185,7 @@ export class Copper implements INodeType {
 						}
 
 						responseData = await handleListing.call(this, 'POST', '/companies/search', body);
-
 					} else if (operation === 'update') {
-
 						// ----------------------------------------
 						//             company: update
 						// ----------------------------------------
@@ -210,40 +195,37 @@ export class Copper implements INodeType {
 						const companyId = this.getNodeParameter('companyId', i);
 
 						const body: IDataObject = {};
-						const updateFields = this.getNodeParameter('updateFields', i) as IDataObject;
+						const updateFields = this.getNodeParameter('updateFields', i);
 
 						if (Object.keys(updateFields).length) {
 							Object.assign(body, adjustCompanyFields(updateFields));
 						}
 
-						responseData = await copperApiRequest.call(this, 'PUT', `/companies/${companyId}`, body);
-
+						responseData = await copperApiRequest.call(
+							this,
+							'PUT',
+							`/companies/${companyId}`,
+							body,
+						);
 					}
-
 				} else if (resource === 'customerSource') {
-
 					// **********************************************************************
 					//                            customerSource
 					// **********************************************************************
 
 					if (operation === 'getAll') {
-
 						// ----------------------------------------
 						//        customerSource: getAll
 						// ----------------------------------------
 
 						responseData = await handleListing.call(this, 'GET', '/customer_sources');
-
 					}
-
 				} else if (resource === 'lead') {
-
 					// **********************************************************************
 					//                                  lead
 					// **********************************************************************
 
 					if (operation === 'create') {
-
 						// ----------------------------------------
 						//               lead: create
 						// ----------------------------------------
@@ -254,16 +236,14 @@ export class Copper implements INodeType {
 							name: this.getNodeParameter('name', i),
 						};
 
-						const additionalFields = this.getNodeParameter('additionalFields', i) as IDataObject;
+						const additionalFields = this.getNodeParameter('additionalFields', i);
 
 						if (Object.keys(additionalFields).length) {
 							Object.assign(body, adjustLeadFields(additionalFields));
 						}
 
 						responseData = await copperApiRequest.call(this, 'POST', '/leads', body);
-
 					} else if (operation === 'delete') {
-
 						// ----------------------------------------
 						//               lead: delete
 						// ----------------------------------------
@@ -273,9 +253,7 @@ export class Copper implements INodeType {
 						const leadId = this.getNodeParameter('leadId', i);
 
 						responseData = await copperApiRequest.call(this, 'DELETE', `/leads/${leadId}`);
-
 					} else if (operation === 'get') {
-
 						// ----------------------------------------
 						//                lead: get
 						// ----------------------------------------
@@ -285,9 +263,7 @@ export class Copper implements INodeType {
 						const leadId = this.getNodeParameter('leadId', i);
 
 						responseData = await copperApiRequest.call(this, 'GET', `/leads/${leadId}`);
-
 					} else if (operation === 'getAll') {
-
 						// ----------------------------------------
 						//               lead: getAll
 						// ----------------------------------------
@@ -300,9 +276,7 @@ export class Copper implements INodeType {
 						}
 
 						responseData = await handleListing.call(this, 'POST', '/leads/search', body);
-
 					} else if (operation === 'update') {
-
 						// ----------------------------------------
 						//               lead: update
 						// ----------------------------------------
@@ -312,24 +286,20 @@ export class Copper implements INodeType {
 						const leadId = this.getNodeParameter('leadId', i);
 
 						const body: IDataObject = {};
-						const updateFields = this.getNodeParameter('updateFields', i) as IDataObject;
+						const updateFields = this.getNodeParameter('updateFields', i);
 
 						if (Object.keys(updateFields).length) {
 							Object.assign(body, adjustLeadFields(updateFields));
 						}
 
 						responseData = await copperApiRequest.call(this, 'PUT', `/leads/${leadId}`, body);
-
 					}
-
 				} else if (resource === 'opportunity') {
-
 					// **********************************************************************
 					//                              opportunity
 					// **********************************************************************
 
 					if (operation === 'create') {
-
 						// ----------------------------------------
 						//           opportunity: create
 						// ----------------------------------------
@@ -343,9 +313,7 @@ export class Copper implements INodeType {
 						};
 
 						responseData = await copperApiRequest.call(this, 'POST', '/opportunities', body);
-
 					} else if (operation === 'delete') {
-
 						// ----------------------------------------
 						//           opportunity: delete
 						// ----------------------------------------
@@ -354,10 +322,12 @@ export class Copper implements INodeType {
 
 						const opportunityId = this.getNodeParameter('opportunityId', i);
 
-						responseData = await copperApiRequest.call(this, 'DELETE', `/opportunities/${opportunityId}`);
-
+						responseData = await copperApiRequest.call(
+							this,
+							'DELETE',
+							`/opportunities/${opportunityId}`,
+						);
 					} else if (operation === 'get') {
-
 						// ----------------------------------------
 						//             opportunity: get
 						// ----------------------------------------
@@ -366,10 +336,12 @@ export class Copper implements INodeType {
 
 						const opportunityId = this.getNodeParameter('opportunityId', i);
 
-						responseData = await copperApiRequest.call(this, 'GET', `/opportunities/${opportunityId}`);
-
+						responseData = await copperApiRequest.call(
+							this,
+							'GET',
+							`/opportunities/${opportunityId}`,
+						);
 					} else if (operation === 'getAll') {
-
 						// ----------------------------------------
 						//           opportunity: getAll
 						// ----------------------------------------
@@ -384,9 +356,7 @@ export class Copper implements INodeType {
 						}
 
 						responseData = await handleListing.call(this, 'POST', '/opportunities/search', body);
-
 					} else if (operation === 'update') {
-
 						// ----------------------------------------
 						//           opportunity: update
 						// ----------------------------------------
@@ -396,24 +366,25 @@ export class Copper implements INodeType {
 						const opportunityId = this.getNodeParameter('opportunityId', i);
 
 						const body: IDataObject = {};
-						const updateFields = this.getNodeParameter('updateFields', i) as IDataObject;
+						const updateFields = this.getNodeParameter('updateFields', i);
 
 						if (Object.keys(updateFields).length) {
 							Object.assign(body, updateFields);
 						}
 
-						responseData = await copperApiRequest.call(this, 'PUT', `/opportunities/${opportunityId}`, body);
-
+						responseData = await copperApiRequest.call(
+							this,
+							'PUT',
+							`/opportunities/${opportunityId}`,
+							body,
+						);
 					}
-
 				} else if (resource === 'person') {
-
 					// **********************************************************************
 					//                                 person
 					// **********************************************************************
 
 					if (operation === 'create') {
-
 						// ----------------------------------------
 						//              person: create
 						// ----------------------------------------
@@ -424,16 +395,14 @@ export class Copper implements INodeType {
 							name: this.getNodeParameter('name', i),
 						};
 
-						const additionalFields = this.getNodeParameter('additionalFields', i) as IDataObject;
+						const additionalFields = this.getNodeParameter('additionalFields', i);
 
 						if (Object.keys(additionalFields).length) {
 							Object.assign(body, adjustPersonFields(additionalFields));
 						}
 
 						responseData = await copperApiRequest.call(this, 'POST', '/people', body);
-
 					} else if (operation === 'delete') {
-
 						// ----------------------------------------
 						//              person: delete
 						// ----------------------------------------
@@ -443,9 +412,7 @@ export class Copper implements INodeType {
 						const personId = this.getNodeParameter('personId', i);
 
 						responseData = await copperApiRequest.call(this, 'DELETE', `/people/${personId}`);
-
 					} else if (operation === 'get') {
-
 						// ----------------------------------------
 						//               person: get
 						// ----------------------------------------
@@ -455,9 +422,7 @@ export class Copper implements INodeType {
 						const personId = this.getNodeParameter('personId', i);
 
 						responseData = await copperApiRequest.call(this, 'GET', `/people/${personId}`);
-
 					} else if (operation === 'getAll') {
-
 						// ----------------------------------------
 						//              person: getAll
 						// ----------------------------------------
@@ -470,9 +435,7 @@ export class Copper implements INodeType {
 						}
 
 						responseData = await handleListing.call(this, 'POST', '/people/search', body);
-
 					} else if (operation === 'update') {
-
 						// ----------------------------------------
 						//              person: update
 						// ----------------------------------------
@@ -482,24 +445,20 @@ export class Copper implements INodeType {
 						const personId = this.getNodeParameter('personId', i);
 
 						const body: IDataObject = {};
-						const updateFields = this.getNodeParameter('updateFields', i) as IDataObject;
+						const updateFields = this.getNodeParameter('updateFields', i);
 
 						if (Object.keys(updateFields).length) {
 							Object.assign(body, adjustPersonFields(updateFields));
 						}
 
 						responseData = await copperApiRequest.call(this, 'PUT', `/people/${personId}`, body);
-
 					}
-
 				} else if (resource === 'project') {
-
 					// **********************************************************************
 					//                                project
 					// **********************************************************************
 
 					if (operation === 'create') {
-
 						// ----------------------------------------
 						//             project: create
 						// ----------------------------------------
@@ -510,16 +469,14 @@ export class Copper implements INodeType {
 							name: this.getNodeParameter('name', i),
 						};
 
-						const additionalFields = this.getNodeParameter('additionalFields', i) as IDataObject;
+						const additionalFields = this.getNodeParameter('additionalFields', i);
 
 						if (Object.keys(additionalFields).length) {
 							Object.assign(body, additionalFields);
 						}
 
 						responseData = await copperApiRequest.call(this, 'POST', '/projects', body);
-
 					} else if (operation === 'delete') {
-
 						// ----------------------------------------
 						//             project: delete
 						// ----------------------------------------
@@ -529,9 +486,7 @@ export class Copper implements INodeType {
 						const projectId = this.getNodeParameter('projectId', i);
 
 						responseData = await copperApiRequest.call(this, 'DELETE', `/projects/${projectId}`);
-
 					} else if (operation === 'get') {
-
 						// ----------------------------------------
 						//               project: get
 						// ----------------------------------------
@@ -541,9 +496,7 @@ export class Copper implements INodeType {
 						const projectId = this.getNodeParameter('projectId', i);
 
 						responseData = await copperApiRequest.call(this, 'GET', `/projects/${projectId}`);
-
 					} else if (operation === 'getAll') {
-
 						// ----------------------------------------
 						//             project: getAll
 						// ----------------------------------------
@@ -558,9 +511,7 @@ export class Copper implements INodeType {
 						}
 
 						responseData = await handleListing.call(this, 'POST', '/projects/search', body);
-
 					} else if (operation === 'update') {
-
 						// ----------------------------------------
 						//             project: update
 						// ----------------------------------------
@@ -570,24 +521,20 @@ export class Copper implements INodeType {
 						const projectId = this.getNodeParameter('projectId', i);
 
 						const body: IDataObject = {};
-						const updateFields = this.getNodeParameter('updateFields', i) as IDataObject;
+						const updateFields = this.getNodeParameter('updateFields', i);
 
 						if (Object.keys(updateFields).length) {
 							Object.assign(body, updateFields);
 						}
 
 						responseData = await copperApiRequest.call(this, 'PUT', `/projects/${projectId}`, body);
-
 					}
-
 				} else if (resource === 'task') {
-
 					// **********************************************************************
 					//                                  task
 					// **********************************************************************
 
 					if (operation === 'create') {
-
 						// ----------------------------------------
 						//               task: create
 						// ----------------------------------------
@@ -598,16 +545,14 @@ export class Copper implements INodeType {
 							name: this.getNodeParameter('name', i),
 						};
 
-						const additionalFields = this.getNodeParameter('additionalFields', i) as IDataObject;
+						const additionalFields = this.getNodeParameter('additionalFields', i);
 
 						if (Object.keys(additionalFields).length) {
 							Object.assign(body, additionalFields);
 						}
 
 						responseData = await copperApiRequest.call(this, 'POST', '/tasks', body);
-
 					} else if (operation === 'delete') {
-
 						// ----------------------------------------
 						//               task: delete
 						// ----------------------------------------
@@ -617,9 +562,7 @@ export class Copper implements INodeType {
 						const taskId = this.getNodeParameter('taskId', i);
 
 						responseData = await copperApiRequest.call(this, 'DELETE', `/tasks/${taskId}`);
-
 					} else if (operation === 'get') {
-
 						// ----------------------------------------
 						//                task: get
 						// ----------------------------------------
@@ -629,9 +572,7 @@ export class Copper implements INodeType {
 						const taskId = this.getNodeParameter('taskId', i);
 
 						responseData = await copperApiRequest.call(this, 'GET', `/tasks/${taskId}`);
-
 					} else if (operation === 'getAll') {
-
 						// ----------------------------------------
 						//               task: getAll
 						// ----------------------------------------
@@ -646,9 +587,7 @@ export class Copper implements INodeType {
 						}
 
 						responseData = await handleListing.call(this, 'POST', '/tasks/search', body);
-
 					} else if (operation === 'update') {
-
 						// ----------------------------------------
 						//               task: update
 						// ----------------------------------------
@@ -658,7 +597,7 @@ export class Copper implements INodeType {
 						const taskId = this.getNodeParameter('taskId', i);
 
 						const body: IDataObject = {};
-						const updateFields = this.getNodeParameter('updateFields', i) as IDataObject;
+						const updateFields = this.getNodeParameter('updateFields', i);
 
 						if (Object.keys(updateFields).length) {
 							Object.assign(body, updateFields);
@@ -666,39 +605,35 @@ export class Copper implements INodeType {
 
 						responseData = await copperApiRequest.call(this, 'PUT', `/tasks/${taskId}`, body);
 					}
-
 				} else if (resource === 'user') {
-
 					// **********************************************************************
 					//                            user
 					// **********************************************************************
 
 					if (operation === 'getAll') {
-
 						// ----------------------------------------
 						//              user: getAll
 						// ----------------------------------------
 
 						responseData = await handleListing.call(this, 'POST', '/users/search');
-
 					}
 				}
-
 			} catch (error) {
 				if (this.continueOnFail()) {
-					returnData.push({ error: error.toString() });
+					returnData.push({ error: error.toString(), json: {} });
 					continue;
 				}
 
 				throw error;
 			}
 
-			Array.isArray(responseData)
-				? returnData.push(...responseData)
-				: returnData.push(responseData);
-
+			const executionData = this.helpers.constructExecutionMetaData(
+				this.helpers.returnJsonArray(responseData as IDataObject[]),
+				{ itemData: { item: i } },
+			);
+			returnData.push(...executionData);
 		}
 
-		return [this.helpers.returnJsonArray(returnData)];
+		return [returnData];
 	}
 }

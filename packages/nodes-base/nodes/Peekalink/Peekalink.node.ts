@@ -1,22 +1,22 @@
 import {
-	IExecuteFunctions,
-} from 'n8n-core';
-
-import {
-	IDataObject,
-	INodeExecutionData,
-	INodeType,
-	INodeTypeDescription,
+	Node,
+	NodeApiError,
+	type IExecuteFunctions,
+	type INodeExecutionData,
+	type INodeTypeDescription,
+	type JsonObject,
+	NodeConnectionType,
 } from 'n8n-workflow';
 
-import {
-	peekalinkApiRequest,
-} from './GenericFunctions';
+export const apiUrl = 'https://api.peekalink.io';
 
-export class Peekalink implements INodeType {
+type Operation = 'preview' | 'isAvailable';
+
+export class Peekalink extends Node {
 	description: INodeTypeDescription = {
 		displayName: 'Peekalink',
 		name: 'peekalink',
+		// eslint-disable-next-line n8n-nodes-base/node-class-description-icon-not-svg
 		icon: 'file:peekalink.png',
 		group: ['output'],
 		version: 1,
@@ -24,10 +24,10 @@ export class Peekalink implements INodeType {
 		description: 'Consume the Peekalink API',
 		defaults: {
 			name: 'Peekalink',
-			color: '#00ade8',
 		},
-		inputs: ['main'],
-		outputs: ['main'],
+		usableAsTool: true,
+		inputs: [NodeConnectionType.Main],
+		outputs: [NodeConnectionType.Main],
 		credentials: [
 			{
 				name: 'peekalinkApi',
@@ -39,71 +39,58 @@ export class Peekalink implements INodeType {
 				displayName: 'Operation',
 				name: 'operation',
 				type: 'options',
+				noDataExpression: true,
 				options: [
 					{
-						name: 'Is available',
+						name: 'Is Available',
 						value: 'isAvailable',
 						description: 'Check whether preview for a given link is available',
+						action: 'Check whether the preview for a given link is available',
 					},
 					{
 						name: 'Preview',
 						value: 'preview',
 						description: 'Return the preview for a link',
+						action: 'Return the preview for a link',
 					},
 				],
 				default: 'preview',
-				description: 'The operation to perform.',
 			},
 			{
 				displayName: 'URL',
 				name: 'url',
 				type: 'string',
 				default: '',
-				description: '',
 				required: true,
 			},
 		],
 	};
 
-	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
-		const items = this.getInputData();
-		const returnData: IDataObject[] = [];
-		const length = items.length as unknown as number;
-		const qs: IDataObject = {};
-		let responseData;
-		const operation = this.getNodeParameter('operation', 0) as string;
+	async execute(context: IExecuteFunctions): Promise<INodeExecutionData[][]> {
+		const items = context.getInputData();
+		const operation = context.getNodeParameter('operation', 0) as Operation;
+		const credentials = await context.getCredentials('peekalinkApi');
 
-		for (let i = 0; i < length; i++) {
-			try {
-				if (operation === 'isAvailable') {
-					const url = this.getNodeParameter('url', i) as string;
-					const body: IDataObject = {
-						link: url,
-					};
-
-					responseData = await peekalinkApiRequest.call(this, 'POST', `/is-available/`, body);
+		const returnData = await Promise.all(
+			items.map(async (_, i) => {
+				try {
+					const link = context.getNodeParameter('url', i) as string;
+					// eslint-disable-next-line @typescript-eslint/no-unsafe-return
+					return await context.helpers.request({
+						method: 'POST',
+						uri: operation === 'preview' ? apiUrl : `${apiUrl}/is-available/`,
+						body: { link },
+						headers: { 'X-API-Key': credentials.apiKey },
+						json: true,
+					});
+				} catch (error) {
+					if (context.continueOnFail()) {
+						return { error: error.message };
+					}
+					throw new NodeApiError(context.getNode(), error as JsonObject);
 				}
-				if (operation === 'preview') {
-					const url = this.getNodeParameter('url', i) as string;
-					const body: IDataObject = {
-						link: url,
-					};
-
-					responseData = await peekalinkApiRequest.call(this, 'POST', `/`, body);
-				}
-				if (Array.isArray(responseData)) {
-					returnData.push.apply(returnData, responseData as IDataObject[]);
-				} else {
-					returnData.push(responseData as IDataObject);
-				}
-			} catch (error) {
-				if (this.continueOnFail()) {
-					returnData.push({ error: error.message });
-					continue;
-				}
-				throw error;
-			}
-		}
-		return [this.helpers.returnJsonArray(returnData)];
+			}),
+		);
+		return [context.helpers.returnJsonArray(returnData)];
 	}
 }

@@ -1,9 +1,12 @@
-import { ICredentialType, INodeProperties } from 'n8n-workflow';
+import type { ICredentialType, INodeProperties } from 'n8n-workflow';
 
 export class CrateDb implements ICredentialType {
 	name = 'crateDb';
+
 	displayName = 'CrateDB';
+
 	documentationUrl = 'crateDb';
+
 	properties: INodeProperties[] = [
 		{
 			displayName: 'Host',
@@ -38,24 +41,16 @@ export class CrateDb implements ICredentialType {
 			type: 'options',
 			options: [
 				{
-					name: 'disable',
-					value: 'disable',
-				},
-				{
-					name: 'allow',
+					name: 'Allow',
 					value: 'allow',
 				},
 				{
-					name: 'require',
+					name: 'Disable',
+					value: 'disable',
+				},
+				{
+					name: 'Require',
 					value: 'require',
-				},
-				{
-					name: 'verify (not implemented)',
-					value: 'verify',
-				},
-				{
-					name: 'verify-full (not implemented)',
-					value: 'verify-full',
 				},
 			],
 			default: 'disable',

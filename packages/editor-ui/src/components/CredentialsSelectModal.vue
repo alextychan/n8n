@@ -1,93 +1,121 @@
+<script setup lang="ts">
+import { useExternalHooks } from '@/composables/useExternalHooks';
+import { useTelemetry } from '@/composables/useTelemetry';
+import { useCredentialsStore } from '@/stores/credentials.store';
+import { useUIStore } from '@/stores/ui.store';
+import { useWorkflowsStore } from '@/stores/workflows.store';
+import { N8nButton, N8nSelect } from 'n8n-design-system';
+import { createEventBus } from 'n8n-design-system/utils';
+import { onMounted, ref } from 'vue';
+import { CREDENTIAL_SELECT_MODAL_KEY } from '../constants';
+import Modal from './Modal.vue';
+import { useI18n } from '@/composables/useI18n';
+
+const externalHooks = useExternalHooks();
+const telemetry = useTelemetry();
+const i18n = useI18n();
+
+const modalBus = ref(createEventBus());
+const selected = ref('');
+const loading = ref(true);
+const selectRef = ref<HTMLSelectElement>();
+
+const credentialsStore = useCredentialsStore();
+const uiStore = useUIStore();
+const workflowsStore = useWorkflowsStore();
+
+onMounted(async () => {
+	try {
+		await credentialsStore.fetchCredentialTypes(false);
+	} catch (e) {}
+
+	loading.value = false;
+
+	setTimeout(() => {
+		if (selectRef.value) {
+			selectRef.value.focus();
+		}
+	}, 0);
+});
+
+function onSelect(type: string) {
+	selected.value = type;
+}
+
+function openCredentialType() {
+	modalBus.value.emit('close');
+	uiStore.openNewCredential(selected.value);
+
+	const telemetryPayload = {
+		credential_type: selected.value,
+		source: 'primary_menu',
+		new_credential: true,
+		workflow_id: workflowsStore.workflowId,
+	};
+
+	telemetry.track('User opened Credential modal', telemetryPayload);
+	void externalHooks.run('credentialsSelectModal.openCredentialType', telemetryPayload);
+}
+</script>
+
 <template>
 	<Modal
 		:name="CREDENTIAL_SELECT_MODAL_KEY"
-		:eventBus="modalBus"
+		:event-bus="modalBus"
 		width="50%"
 		:center="true"
-		maxWidth="460px"
+		:loading="loading"
+		max-width="460px"
+		min-height="250px"
 	>
-		<template slot="header">
-			<h2 :class="$style.title">Add new credential</h2>
+		<template #header>
+			<h2 :class="$style.title">
+				{{ i18n.baseText('credentialSelectModal.addNewCredential') }}
+			</h2>
 		</template>
-		<template slot="content">
+		<template #content>
 			<div>
-				<div :class="$style.subtitle">Select an app or service to connect to</div>
-				<n8n-select
+				<div :class="$style.subtitle">
+					{{ i18n.baseText('credentialSelectModal.selectAnAppOrServiceToConnectTo') }}
+				</div>
+				<N8nSelect
+					ref="selectRef"
 					filterable
-					defaultFirstOption
-					placeholder="Search for app..."
+					default-first-option
+					:placeholder="i18n.baseText('credentialSelectModal.searchForApp')"
 					size="xlarge"
-					ref="select"
-					:value="selected"
-					@change="onSelect"
+					:model-value="selected"
+					data-test-id="new-credential-type-select"
+					@update:model-value="onSelect"
 				>
-					<font-awesome-icon icon="search" slot="prefix" />
-					<n8n-option
-						v-for="credential in allCredentialTypes"
-						:value="credential.name"
+					<template #prefix>
+						<font-awesome-icon icon="search" />
+					</template>
+					<N8nOption
+						v-for="credential in credentialsStore.allCredentialTypes"
 						:key="credential.name"
+						:value="credential.name"
 						:label="credential.displayName"
 						filterable
+						data-test-id="new-credential-type-select-option"
 					/>
-				</n8n-select>
+				</N8nSelect>
 			</div>
 		</template>
-		<template slot="footer">
+		<template #footer>
 			<div :class="$style.footer">
-				<n8n-button
-					label="Continue"
+				<N8nButton
+					:label="i18n.baseText('credentialSelectModal.continue')"
 					float="right"
 					size="large"
 					:disabled="!selected"
+					data-test-id="new-credential-type-button"
 					@click="openCredentialType"
 				/>
 			</div>
 		</template>
 	</Modal>
 </template>
-
-<script lang="ts">
-import Vue from 'vue';
-import { mapGetters } from "vuex";
-
-import Modal from './Modal.vue';
-import { CREDENTIAL_SELECT_MODAL_KEY } from '../constants';
-
-export default Vue.extend({
-	name: 'CredentialsSelectModal',
-	components: {
-		Modal,
-	},
-	mounted() {
-		setTimeout(() => {
-			const element = this.$refs.select as HTMLSelectElement;
-			if (element) {
-				element.focus();
-			}
-		}, 0);
-	},
-	data() {
-		return {
-			modalBus: new Vue(),
-			selected: '',
-			CREDENTIAL_SELECT_MODAL_KEY,
-		};
-	},
-	computed: {
-		...mapGetters('credentials', ['allCredentialTypes']),
-	},
-	methods: {
-		onSelect(type: string) {
-			this.selected = type;
-		},
-		openCredentialType () {
-			this.modalBus.$emit('close');
-			this.$store.dispatch('ui/openNewCredential', { type: this.selected });
-			this.$telemetry.track('User opened Credential modal', { credential_type: this.selected, source: 'primary_menu', new_credential: true, workflow_id: this.$store.getters.workflowId });
-		},
-	},
-});
-</script>
 
 <style module lang="scss">
 .title {

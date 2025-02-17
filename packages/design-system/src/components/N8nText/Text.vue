@@ -1,56 +1,51 @@
-<template functional>
-	<span :class="$style[$options.methods.getClass(props)]" :style="$options.methods.getStyles(props)">
-		<slot></slot>
-	</span>
-</template>
+<script lang="ts" setup>
+import { computed, useCssModule } from 'vue';
 
-<script lang="ts">
-import Vue from 'vue';
-export default Vue.extend({
-	name: 'n8n-text',
-	props: {
-		bold: {
-			type: Boolean,
-			default: false,
-		},
-		size: {
-			type: String,
-			default: 'medium',
-			validator: (value: string): boolean => ['mini', 'small', 'medium', 'large', 'xlarge'].includes(value),
-		},
-		color: {
-			type: String,
-			validator: (value: string): boolean => ['primary', 'text-dark', 'text-base', 'text-light'].includes(value),
-		},
-		align: {
-			type: String,
-			validator: (value: string): boolean => ['right', 'left', 'center'].includes(value),
-		},
-		compact: {
-			type: Boolean,
-			default: false,
-		},
-	},
-	methods: {
-		getClass(props: {size: string, bold: boolean}) {
-			return `body-${props.size}${props.bold ? '-bold' : '-regular'}`;
-		},
-		getStyles(props: {color: string, align: string, compact: false}) {
-			const styles = {} as any;
-			if (props.color) {
-				styles.color = `var(--color-${props.color})`;
-			}
-			if (props.compact) {
-				styles['line-height'] = 1;
-			}
-			if (props.align) {
-				styles['text-align'] = props.align;
-			}
-			return styles;
-		},
-	},
+import type { TextSize, TextColor, TextAlign } from 'n8n-design-system/types/text';
+
+interface TextProps {
+	bold?: boolean;
+	size?: TextSize;
+	color?: TextColor;
+	align?: TextAlign;
+	compact?: boolean;
+	tag?: string;
+}
+
+defineOptions({ name: 'N8nText' });
+const props = withDefaults(defineProps<TextProps>(), {
+	bold: false,
+	size: 'medium',
+	compact: false,
+	tag: 'span',
+});
+
+const $style = useCssModule();
+const classes = computed(() => {
+	const applied: string[] = [];
+	if (props.align) {
+		applied.push(`align-${props.align}`);
+	}
+	if (props.color) {
+		applied.push(props.color);
+	}
+
+	if (props.compact) {
+		applied.push('compact');
+	}
+
+	applied.push(`size-${props.size}`);
+	applied.push(props.bold ? 'bold' : 'regular');
+
+	return applied.map((c) => $style[c]);
 });
 </script>
+
+<template>
+	<component :is="tag" :class="['n8n-text', ...classes]" v-bind="$attrs">
+		<slot></slot>
+	</component>
+</template>
 
 <style lang="scss" module>
 .bold {
@@ -61,65 +56,80 @@ export default Vue.extend({
 	font-weight: var(--font-weight-regular);
 }
 
-.body-xlarge {
+.size-xlarge {
 	font-size: var(--font-size-xl);
 	line-height: var(--font-line-height-xloose);
 }
 
-.body-xlarge-regular {
-	composes: regular;
-	composes: body-xlarge;
-}
-
-.body-xlarge-bold {
-	composes: bold;
-	composes: body-xlarge;
-}
-
-
-.body-large {
+.size-large {
 	font-size: var(--font-size-m);
 	line-height: var(--font-line-height-xloose);
 }
 
-.body-large-regular {
-	composes: regular;
-	composes: body-large;
-}
-
-.body-large-bold {
-	composes: bold;
-	composes: body-large;
-}
-
-.body-medium {
+.size-medium {
 	font-size: var(--font-size-s);
 	line-height: var(--font-line-height-loose);
 }
 
-.body-medium-regular {
-	composes: regular;
-	composes: body-medium;
-}
-
-.body-medium-bold {
-	composes: bold;
-	composes: body-medium;
-}
-
-.body-small {
+.size-small {
 	font-size: var(--font-size-2xs);
 	line-height: var(--font-line-height-loose);
 }
 
-.body-small-regular {
-	composes: regular;
-	composes: body-small;
+.size-xsmall {
+	font-size: var(--font-size-3xs);
+	line-height: var(--font-line-height-compact);
 }
 
-.body-small-bold {
-	composes: bold;
-	composes: body-small;
+.compact {
+	line-height: 1;
 }
 
+.primary {
+	color: var(--color-primary);
+}
+
+.secondary {
+	color: var(--color-secondary);
+}
+
+.text-dark {
+	color: var(--color-text-dark);
+}
+
+.text-base {
+	color: var(--color-text-base);
+}
+
+.text-light {
+	color: var(--color-text-light);
+}
+
+.text-xlight {
+	color: var(--color-text-xlight);
+}
+
+.danger {
+	color: var(--color-text-danger);
+}
+
+.success {
+	color: var(--color-success);
+}
+
+.warning {
+	color: var(--color-warning);
+}
+
+.align-left {
+	text-align: left;
+}
+
+.align-right {
+	text-align: right;
+}
+
+.align-center {
+	text-align: center;
+}
 </style>

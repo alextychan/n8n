@@ -1,84 +1,96 @@
-<template>
-	<el-drawer
-		:direction="direction"
-		:visible="visible"
-		:size="width"
-		:before-close="close"
-		>
-		<template v-slot:title>
-			<slot name="header" />
-		</template>
-		<template>
-			<slot name="content"/>
-		</template>
-	</el-drawer>
-</template>
+<script setup lang="ts">
+import { useUIStore } from '@/stores/ui.store';
+import { onBeforeUnmount, onMounted } from 'vue';
+import type { EventBus } from 'n8n-design-system';
+import { ElDrawer } from 'element-plus';
 
-<script lang="ts">
-import Vue from "vue";
-
-export default Vue.extend({
-	name: "ModalDrawer",
-	props: {
-		name: {
-			type: String,
-		},
-		eventBus: {
-			type: Vue,
-		},
-		direction: {
-			type: String,
-		},
-		width: {
-			type: String,
-		},
+const props = withDefaults(
+	defineProps<{
+		name: string;
+		beforeClose?: Function;
+		eventBus?: EventBus;
+		direction: 'ltr' | 'rtl' | 'ttb' | 'btt';
+		modal?: boolean;
+		width: string;
+		wrapperClosable?: boolean;
+		closeOnClickModal?: boolean;
+		zIndex?: number;
+	}>(),
+	{
+		modal: true,
+		wrapperClosable: true,
+		closeOnClickModal: false,
 	},
-	mounted() {
-		window.addEventListener('keydown', this.onWindowKeydown);
+);
 
-		if (this.$props.eventBus) {
-			this.$props.eventBus.$on('close', () => {
-				this.close();
-			});
+const emit = defineEmits<{
+	enter: [];
+}>();
+
+const uiStore = useUIStore();
+
+const handleEnter = () => {
+	if (uiStore.isModalActiveById[props.name]) {
+		emit('enter');
+	}
+};
+
+const onWindowKeydown = (event: KeyboardEvent) => {
+	if (!uiStore.isModalActiveById[props.name]) {
+		return;
+	}
+
+	if (event && event.keyCode === 13) {
+		handleEnter();
+	}
+};
+
+const close = async () => {
+	if (props.beforeClose) {
+		const shouldClose = await props.beforeClose();
+		if (shouldClose === false) {
+			// must be strictly false to stop modal from closing
+			return;
 		}
+	}
+	uiStore.closeModal(props.name);
+};
 
-		const activeElement = document.activeElement as HTMLElement;
-		if (activeElement) {
-			activeElement.blur();
-		}
-	},
-	beforeDestroy() {
-		window.removeEventListener('keydown', this.onWindowKeydown);
-	},
-	methods: {
-		onWindowKeydown(event: KeyboardEvent) {
-			if (!this.isActive) {
-				return;
-			}
+onMounted(() => {
+	window.addEventListener('keydown', onWindowKeydown);
+	props.eventBus?.on('close', close);
 
-			if (event && event.keyCode === 13) {
-				this.handleEnter();
-			}
-		},
-		handleEnter() {
-			if (this.isActive) {
-				this.$emit('enter');
-			}
-		},
-		close() {
-			this.$store.commit('ui/closeTopModal');
-		},
-	},
-	computed: {
-		isActive(): boolean {
-			return this.$store.getters['ui/isModalActive'](this.$props.name);
-		},
-		visible(): boolean {
-			return this.$store.getters['ui/isModalOpen'](this.$props.name);
-		},
-	},
+	const activeElement = document.activeElement as HTMLElement;
+	if (activeElement) {
+		activeElement.blur();
+	}
+});
+
+onBeforeUnmount(() => {
+	props.eventBus?.off('close', close);
+	window.removeEventListener('keydown', onWindowKeydown);
 });
 </script>
+
+<template>
+	<ElDrawer
+		:direction="direction"
+		:model-value="uiStore.modalsById[name].open"
+		:size="width"
+		:before-close="close"
+		:modal="modal"
+		:wrapper-closable="wrapperClosable"
+		:close-on-click-modal="closeOnClickModal"
+		:z-index="zIndex"
+	>
+		<template #header>
+			<slot name="header" />
+		</template>
+		<span @keydown.stop>
+			<slot name="content" />
+		</span>
+	</ElDrawer>
+</template>
 
 <style lang="scss">
 .el-drawer__header {

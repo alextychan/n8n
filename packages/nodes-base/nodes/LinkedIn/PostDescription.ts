@@ -1,15 +1,14 @@
-import { INodeProperties } from 'n8n-workflow';
+import type { INodeProperties } from 'n8n-workflow';
 
-export const postOperations = [
+export const postOperations: INodeProperties[] = [
 	{
 		displayName: 'Operation',
 		name: 'operation',
 		type: 'options',
+		noDataExpression: true,
 		displayOptions: {
 			show: {
-				resource: [
-					'post',
-				],
+				resource: ['post'],
 			},
 		},
 		options: [
@@ -17,23 +16,23 @@ export const postOperations = [
 				name: 'Create',
 				value: 'create',
 				description: 'Create a new post',
+				action: 'Create a post',
 			},
 		],
 		default: 'create',
-		description: 'The operation to perform.',
 	},
-] as INodeProperties[];
+];
 
-export const postFields = [
-/* -------------------------------------------------------------------------- */
-/*                                 post:create                              */
-/* -------------------------------------------------------------------------- */
+export const postFields: INodeProperties[] = [
+	/* -------------------------------------------------------------------------- */
+	/*                                 post:create                              */
+	/* -------------------------------------------------------------------------- */
 	{
 		displayName: 'Post As',
 		name: 'postAs',
 		type: 'options',
-		default: '',
-		description: 'If to post on behalf of a user or an organization.',
+		default: 'person',
+		description: 'If to post on behalf of a user or an organization',
 		options: [
 			{
 				name: 'Person',
@@ -46,7 +45,7 @@ export const postFields = [
 		],
 	},
 	{
-		displayName: 'Person',
+		displayName: 'Person Name or ID',
 		name: 'person',
 		type: 'options',
 		typeOptions: {
@@ -54,18 +53,13 @@ export const postFields = [
 		},
 		default: '',
 		required: true,
-		description: 'Person as which the post should be posted as.',
+		description:
+			'Person as which the post should be posted as. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
 		displayOptions: {
 			show: {
-				operation: [
-					'create',
-				],
-				postAs: [
-					'person',
-				],
-				resource: [
-					'post',
-				],
+				operation: ['create'],
+				postAs: ['person'],
+				resource: ['post'],
 			},
 		},
 	},
@@ -75,18 +69,12 @@ export const postFields = [
 		type: 'string',
 		default: '',
 		placeholder: '1234567',
-		description: 'URN of Organization as which the post should be posted as.',
+		description: 'URN of Organization as which the post should be posted as',
 		displayOptions: {
 			show: {
-				operation: [
-					'create',
-				],
-				postAs: [
-					'organization',
-				],
-				resource: [
-					'post',
-				],
+				operation: ['create'],
+				postAs: ['organization'],
+				resource: ['post'],
 			},
 		},
 	},
@@ -95,15 +83,11 @@ export const postFields = [
 		name: 'text',
 		type: 'string',
 		default: '',
-		description: 'The primary content of the post.',
+		description: 'The primary content of the post',
 		displayOptions: {
 			show: {
-				operation: [
-					'create',
-				],
-				resource: [
-					'post',
-				],
+				operation: ['create'],
+				resource: ['post'],
 			},
 		},
 	},
@@ -131,34 +115,24 @@ export const postFields = [
 		],
 		displayOptions: {
 			show: {
-				operation: [
-					'create',
-				],
-				resource: [
-					'post',
-				],
+				operation: ['create'],
+				resource: ['post'],
 			},
 		},
 	},
 	{
-		displayName: 'Binary Property',
+		displayName: 'Input Binary Field',
 		displayOptions: {
 			show: {
-				operation: [
-					'create',
-				],
-				resource: [
-					'post',
-				],
-				shareMediaCategory: [
-					'IMAGE',
-				],
+				operation: ['create'],
+				resource: ['post'],
+				shareMediaCategory: ['IMAGE'],
 			},
 		},
 		name: 'binaryPropertyName',
 		type: 'string',
 		default: 'data',
-		description: 'Object property name which holds binary data',
+		hint: 'The name of the input binary field containing the file to be written',
 		required: true,
 	},
 	{
@@ -169,12 +143,8 @@ export const postFields = [
 		default: {},
 		displayOptions: {
 			show: {
-				operation: [
-					'create',
-				],
-				resource: [
-					'post',
-				],
+				operation: ['create'],
+				resource: ['post'],
 			},
 		},
 		options: [
@@ -183,13 +153,10 @@ export const postFields = [
 				name: 'description',
 				type: 'string',
 				default: '',
-				description: 'Provide a short description for your image or article.',
+				description: 'Provide a short description for your image or article',
 				displayOptions: {
 					show: {
-						'/shareMediaCategory': [
-							'ARTICLE',
-							'IMAGE',
-						],
+						'/shareMediaCategory': ['ARTICLE'],
 					},
 				},
 			},
@@ -198,12 +165,22 @@ export const postFields = [
 				name: 'originalUrl',
 				type: 'string',
 				default: '',
-				description: 'Provide the URL of the article you would like to share here.',
+				description: 'Provide the URL of the article you would like to share here',
 				displayOptions: {
 					show: {
-						'/shareMediaCategory': [
-							'ARTICLE',
-						],
+						'/shareMediaCategory': ['ARTICLE'],
+					},
+				},
+			},
+			{
+				displayName: 'Input Binary Field',
+				name: 'thumbnailBinaryPropertyName',
+				type: 'string',
+				default: 'data',
+				hint: 'The name of the input binary field containing the file for the article thumbnail',
+				displayOptions: {
+					show: {
+						'/shareMediaCategory': ['ARTICLE'],
 					},
 				},
 			},
@@ -212,13 +189,10 @@ export const postFields = [
 				name: 'title',
 				type: 'string',
 				default: '',
-				description: 'Customize the title of your image or article.',
+				description: 'Customize the title of your image or article',
 				displayOptions: {
 					show: {
-						'/shareMediaCategory': [
-							'ARTICLE',
-							'IMAGE',
-						],
+						'/shareMediaCategory': ['ARTICLE', 'IMAGE'],
 					},
 				},
 			},
@@ -227,12 +201,10 @@ export const postFields = [
 				name: 'visibility',
 				type: 'options',
 				default: 'PUBLIC',
-				description: 'Dictate if post will be seen by the public or only connections.',
+				description: 'Dictate if post will be seen by the public or only connections',
 				displayOptions: {
 					show: {
-						'/postAs': [
-							'person',
-						],
+						'/postAs': ['person'],
 					},
 				},
 				options: [
@@ -248,4 +220,4 @@ export const postFields = [
 			},
 		],
 	},
-] as INodeProperties[];
+];

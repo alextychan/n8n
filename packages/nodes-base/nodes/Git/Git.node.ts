@@ -1,10 +1,14 @@
-import { IExecuteFunctions } from 'n8n-core';
-import {
-	IDataObject,
+import { access, mkdir } from 'fs/promises';
+import type {
+	IExecuteFunctions,
 	INodeExecutionData,
 	INodeType,
 	INodeTypeDescription,
 } from 'n8n-workflow';
+import { NodeConnectionType } from 'n8n-workflow';
+import type { LogOptions, SimpleGit, SimpleGitOptions } from 'simple-git';
+import simpleGit from 'simple-git';
+import { URL } from 'url';
 
 import {
 	addConfigFields,
@@ -16,19 +20,6 @@ import {
 	tagFields,
 } from './descriptions';
 
-import simpleGit, {
-	LogOptions,
-	SimpleGit,
-	SimpleGitOptions,
-} from 'simple-git';
-
-import {
-	access,
-	mkdir,
-} from 'fs/promises';
-
-import { URL } from 'url';
-
 export class Git implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'Git',
@@ -39,19 +30,17 @@ export class Git implements INodeType {
 		description: 'Control git.',
 		defaults: {
 			name: 'Git',
-			color: '#808080',
 		},
-		inputs: ['main'],
-		outputs: ['main'],
+		usableAsTool: true,
+		inputs: [NodeConnectionType.Main],
+		outputs: [NodeConnectionType.Main],
 		credentials: [
 			{
 				name: 'gitPassword',
 				required: true,
 				displayOptions: {
 					show: {
-						authentication: [
-							'gitPassword',
-						],
+						authentication: ['gitPassword'],
 					},
 				},
 			},
@@ -73,86 +62,96 @@ export class Git implements INodeType {
 				],
 				displayOptions: {
 					show: {
-						operation: [
-							'clone',
-							'push',
-						],
+						operation: ['clone', 'push'],
 					},
 				},
 				default: 'none',
-				description: 'The way to authenticate.',
+				description: 'The way to authenticate',
 			},
 			{
 				displayName: 'Operation',
 				name: 'operation',
 				type: 'options',
+				noDataExpression: true,
 				default: 'log',
-				description: 'Operation to perform',
 				options: [
 					{
 						name: 'Add',
 						value: 'add',
 						description: 'Add a file or folder to commit',
+						action: 'Add a file or folder to commit',
 					},
 					{
 						name: 'Add Config',
 						value: 'addConfig',
 						description: 'Add configuration property',
+						action: 'Add configuration property',
 					},
 					{
 						name: 'Clone',
 						value: 'clone',
 						description: 'Clone a repository',
+						action: 'Clone a repository',
 					},
 					{
 						name: 'Commit',
 						value: 'commit',
 						description: 'Commit files or folders to git',
+						action: 'Commit files or folders to git',
 					},
 					{
 						name: 'Fetch',
 						value: 'fetch',
 						description: 'Fetch from remote repository',
+						action: 'Fetch from remote repository',
 					},
 					{
 						name: 'List Config',
 						value: 'listConfig',
 						description: 'Return current configuration',
+						action: 'Return current configuration',
 					},
 					{
 						name: 'Log',
 						value: 'log',
 						description: 'Return git commit history',
+						action: 'Return git commit history',
 					},
 					{
 						name: 'Pull',
 						value: 'pull',
 						description: 'Pull from remote repository',
+						action: 'Pull from remote repository',
 					},
 					{
 						name: 'Push',
 						value: 'push',
 						description: 'Push to remote repository',
+						action: 'Push to remote repository',
 					},
 					{
 						name: 'Push Tags',
 						value: 'pushTags',
 						description: 'Push Tags to remote repository',
+						action: 'Push tags to remote repository',
 					},
 					{
 						name: 'Status',
 						value: 'status',
 						description: 'Return status of current repository',
+						action: 'Return status of current repository',
 					},
 					{
 						name: 'Tag',
 						value: 'tag',
 						description: 'Create a new tag',
+						action: 'Create a new tag',
 					},
 					{
 						name: 'User Setup',
 						value: 'userSetup',
 						description: 'Set the user',
+						action: 'Set up a user',
 					},
 				],
 			},
@@ -163,15 +162,13 @@ export class Git implements INodeType {
 				type: 'string',
 				displayOptions: {
 					hide: {
-						operation: [
-							'clone',
-						],
+						operation: ['clone'],
 					},
 				},
 				default: '',
 				placeholder: '/tmp/repository',
 				required: true,
-				description: 'Local path of the git repository to operate on.',
+				description: 'Local path of the git repository to operate on',
 			},
 			{
 				displayName: 'New Repository Path',
@@ -179,15 +176,13 @@ export class Git implements INodeType {
 				type: 'string',
 				displayOptions: {
 					show: {
-						operation: [
-							'clone',
-						],
+						operation: ['clone'],
 					},
 				},
 				default: '',
 				placeholder: '/tmp/repository',
 				required: true,
-				description: 'Local path to which the git repository should be cloned into.',
+				description: 'Local path to which the git repository should be cloned into',
 			},
 
 			...addFields,
@@ -201,16 +196,14 @@ export class Git implements INodeType {
 		],
 	};
 
-
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
 		const items = this.getInputData();
-
 
 		const prepareRepository = async (repositoryPath: string): Promise<string> => {
 			const authentication = this.getNodeParameter('authentication', 0) as string;
 
 			if (authentication === 'gitPassword') {
-				const gitCredentials = await this.getCredentials('gitPassword') as IDataObject;
+				const gitCredentials = await this.getCredentials('gitPassword');
 
 				const url = new URL(repositoryPath);
 				url.username = gitCredentials.username as string;
@@ -222,15 +215,12 @@ export class Git implements INodeType {
 			return repositoryPath;
 		};
 
-		const operation = this.getNodeParameter('operation', 0) as string;
-		let item: INodeExecutionData;
+		const operation = this.getNodeParameter('operation', 0);
 		const returnItems: INodeExecutionData[] = [];
 		for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
 			try {
-				item = items[itemIndex];
-
 				const repositoryPath = this.getNodeParameter('repositoryPath', itemIndex, '') as string;
-				const options = this.getNodeParameter('options', itemIndex, {}) as IDataObject;
+				const options = this.getNodeParameter('options', itemIndex, {});
 
 				if (operation === 'clone') {
 					// Create repository folder if it does not exist
@@ -260,8 +250,14 @@ export class Git implements INodeType {
 
 					await git.add(pathsToAdd.split(','));
 
-					returnItems.push({ json: { success: true } });
-
+					returnItems.push({
+						json: {
+							success: true,
+						},
+						pairedItem: {
+							item: itemIndex,
+						},
+					});
 				} else if (operation === 'addConfig') {
 					// ----------------------------------
 					//         addConfig
@@ -276,8 +272,14 @@ export class Git implements INodeType {
 					}
 
 					await git.addConfig(key, value, append);
-					returnItems.push({ json: { success: true } });
-
+					returnItems.push({
+						json: {
+							success: true,
+						},
+						pairedItem: {
+							item: itemIndex,
+						},
+					});
 				} else if (operation === 'clone') {
 					// ----------------------------------
 					//         clone
@@ -288,8 +290,14 @@ export class Git implements INodeType {
 
 					await git.clone(sourceRepository, '.');
 
-					returnItems.push({ json: { success: true } });
-
+					returnItems.push({
+						json: {
+							success: true,
+						},
+						pairedItem: {
+							item: itemIndex,
+						},
+					});
 				} else if (operation === 'commit') {
 					// ----------------------------------
 					//         commit
@@ -304,16 +312,28 @@ export class Git implements INodeType {
 
 					await git.commit(message, pathsToAdd);
 
-					returnItems.push({ json: { success: true } });
-
+					returnItems.push({
+						json: {
+							success: true,
+						},
+						pairedItem: {
+							item: itemIndex,
+						},
+					});
 				} else if (operation === 'fetch') {
 					// ----------------------------------
 					//         fetch
 					// ----------------------------------
 
 					await git.fetch();
-					returnItems.push({ json: { success: true } });
-
+					returnItems.push({
+						json: {
+							success: true,
+						},
+						pairedItem: {
+							item: itemIndex,
+						},
+					});
 				} else if (operation === 'log') {
 					// ----------------------------------
 					//         log
@@ -321,9 +341,9 @@ export class Git implements INodeType {
 
 					const logOptions: LogOptions = {};
 
-					const returnAll = this.getNodeParameter('returnAll', itemIndex, false) as boolean;
-					if (returnAll === false) {
-						logOptions.maxCount = this.getNodeParameter('limit', itemIndex, 100) as number;
+					const returnAll = this.getNodeParameter('returnAll', itemIndex, false);
+					if (!returnAll) {
+						logOptions.maxCount = this.getNodeParameter('limit', itemIndex, 100);
 					}
 					if (options.file) {
 						logOptions.file = options.file as string;
@@ -331,17 +351,29 @@ export class Git implements INodeType {
 
 					const log = await git.log(logOptions);
 
-					// @ts-ignore
-					returnItems.push(...this.helpers.returnJsonArray(log.all));
-
+					returnItems.push(
+						// @ts-ignore
+						...this.helpers.returnJsonArray(log.all).map((item) => {
+							return {
+								...item,
+								pairedItem: { item: itemIndex },
+							};
+						}),
+					);
 				} else if (operation === 'pull') {
 					// ----------------------------------
 					//         pull
 					// ----------------------------------
 
 					await git.pull();
-					returnItems.push({ json: { success: true } });
-
+					returnItems.push({
+						json: {
+							success: true,
+						},
+						pairedItem: {
+							item: itemIndex,
+						},
+					});
 				} else if (operation === 'push') {
 					// ----------------------------------
 					//         push
@@ -371,16 +403,28 @@ export class Git implements INodeType {
 						}
 					}
 
-					returnItems.push({ json: { success: true } });
-
+					returnItems.push({
+						json: {
+							success: true,
+						},
+						pairedItem: {
+							item: itemIndex,
+						},
+					});
 				} else if (operation === 'pushTags') {
 					// ----------------------------------
 					//         pushTags
 					// ----------------------------------
 
 					await git.pushTags();
-					returnItems.push({ json: { success: true } });
-
+					returnItems.push({
+						json: {
+							success: true,
+						},
+						pairedItem: {
+							item: itemIndex,
+						},
+					});
 				} else if (operation === 'listConfig') {
 					// ----------------------------------
 					//         listConfig
@@ -396,9 +440,14 @@ export class Git implements INodeType {
 						});
 					}
 
-					// @ts-ignore
-					returnItems.push(...this.helpers.returnJsonArray(data));
-
+					returnItems.push(
+						...this.helpers.returnJsonArray(data).map((item) => {
+							return {
+								...item,
+								pairedItem: { item: itemIndex },
+							};
+						}),
+					);
 				} else if (operation === 'status') {
 					// ----------------------------------
 					//         status
@@ -406,9 +455,15 @@ export class Git implements INodeType {
 
 					const status = await git.status();
 
-					// @ts-ignore
-					returnItems.push(...this.helpers.returnJsonArray([status]));
-
+					returnItems.push(
+						// @ts-ignore
+						...this.helpers.returnJsonArray([status]).map((item) => {
+							return {
+								...item,
+								pairedItem: { item: itemIndex },
+							};
+						}),
+					);
 				} else if (operation === 'tag') {
 					// ----------------------------------
 					//         tag
@@ -417,14 +472,25 @@ export class Git implements INodeType {
 					const name = this.getNodeParameter('name', itemIndex, '') as string;
 
 					await git.addTag(name);
-					returnItems.push({ json: { success: true } });
-
+					returnItems.push({
+						json: {
+							success: true,
+						},
+						pairedItem: {
+							item: itemIndex,
+						},
+					});
 				}
-
 			} catch (error) {
-
 				if (this.continueOnFail()) {
-					returnItems.push({ json: { error: error.toString() } });
+					returnItems.push({
+						json: {
+							error: error.toString(),
+						},
+						pairedItem: {
+							item: itemIndex,
+						},
+					});
 					continue;
 				}
 
@@ -432,6 +498,6 @@ export class Git implements INodeType {
 			}
 		}
 
-		return this.prepareOutputData(returnItems);
+		return [returnItems];
 	}
 }
